@@ -1,11 +1,13 @@
 name: Release
-run-name: "Release ${{ github.event.release.tag_name || github.ref_name }}"
+run-name: "Release"
 
-# A pushed tag such as v1.0.0 makes the release; a release published by
+# A push to main whose VERSION has no release yet makes that release
+# (tag v<VERSION> on that commit) with the .ipk; a release published by
 # hand gets its package too.
 on:
   push:
-    tags: [ "v*.*.*" ]
+    branches: [ main ]
+    paths: [ VERSION ]
   release:
     types: [ published ]
 
@@ -26,9 +28,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0 # the version comes from git describe --tags
+          fetch-depth: 0
+
+      - name: Version
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then tag="${{ github.event.release.tag_name }}"; else tag="v$(tr -d '[:space:]' < VERSION)"; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "push" ] && gh release view "$tag" -R "${{ github.repository }}" >/dev/null 2>&1; then echo "skip=true" >> "$GITHUB_OUTPUT"; fi
 
       - name: Download ares-cli-rs
+        if: steps.ver.outputs.skip != 'true'
         uses: robinraju/release-downloader@v1.9
         with:
           repository: "webosbrew/ares-cli-rs"
@@ -37,6 +49,7 @@ jobs:
           out-file-path: "temp"
 
       - name: Download Manifest Generator
+        if: steps.ver.outputs.skip != 'true'
         uses: robinraju/release-downloader@v1.9
         with:
           repository: "webosbrew/dev-toolbox-cli"
@@ -45,23 +58,28 @@ jobs:
           out-file-path: "temp"
 
       - name: Update Packages
+        if: steps.ver.outputs.skip != 'true'
         run: sudo apt-get -yq update
 
       - name: Install webOS CLI
+        if: steps.ver.outputs.skip != 'true'
         run: sudo apt-get install ./temp/*.deb
 
       - name: webOS Build
+        if: steps.ver.outputs.skip != 'true'
         uses: ./.github/actions/build-webos
         with:
           build-type: RelWithDebInfo
 
       - name: Create Release (webOS)
+        if: steps.ver.outputs.skip != 'true'
         id: create_release_webos
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.event.release.tag_name || github.ref_name }}
-          name: Lootnest for TV ${{ github.event.release.tag_name || github.ref_name }}
+          tag: ${{ steps.ver.outputs.tag }}
+          commit: ${{ github.sha }}
+          name: Lootnest for TV ${{ steps.ver.outputs.tag }}
           body: "Lootnest for TV for LG webOS TVs. Lootnest on the PC installs it from Settings, TV, Add an LG TV. Based on Moonlight TV (GPL v3); the source is this repository at this tag."
           allowUpdates: true
           omitNameDuringUpdate: true

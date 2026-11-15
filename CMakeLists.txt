@@ -1,8 +1,14 @@
 cmake_minimum_required(VERSION 3.19)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
-execute_process(COMMAND git describe --tags --abbrev=0 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_VARIABLE MOONLIGHT_VERSION ERROR_QUIET)
+# Lootnest for TV: its own version, in VERSION (a release is made from it).
+if (EXISTS "${CMAKE_SOURCE_DIR}/VERSION")
+    file(READ "${CMAKE_SOURCE_DIR}/VERSION" MOONLIGHT_VERSION)
+    set(MOONLIGHT_VERSION "v${MOONLIGHT_VERSION}")
+else ()
+    execute_process(COMMAND git describe --tags --abbrev=0 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            OUTPUT_VARIABLE MOONLIGHT_VERSION ERROR_QUIET)
+endif ()
 if (MOONLIGHT_VERSION)
     string(STRIP "${MOONLIGHT_VERSION}" MOONLIGHT_VERSION)
     string(SUBSTRING "${MOONLIGHT_VERSION}" 1 -1 MOONLIGHT_VERSION)
