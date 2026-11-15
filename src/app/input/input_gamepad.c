@@ -7,6 +7,7 @@
 
 #include "logging.h"
 #include "app_input.h"
+#include "lootnest.h"
 #if FEATURE_GAMEPAD_TOUCHPAD_GRAB
 #include "gamepad_touchpad.h"
 #endif
@@ -22,6 +23,12 @@ bool app_input_init_gamepad(app_input_t *input, int device_index) {
     char guidstr[33];
     SDL_JoystickGetGUIDString(guid, guidstr, 33);
     const char *name = SDL_JoystickNameForIndex(device_index);
+    // Lootnest: a pad this SDL has no mapping for gets one by the usual
+    // button order, so it works rather than being ignored.
+    bool guessed = false;
+    if (!SDL_IsGameController(device_index)) {
+        guessed = lootnest_guess_mapping(device_index) && SDL_IsGameController(device_index);
+    }
     if (SDL_IsGameController(device_index)) {
         SDL_GameController *controller = SDL_GameControllerOpen(device_index);
         if (!controller) {
@@ -44,9 +51,11 @@ bool app_input_init_gamepad(app_input_t *input, int device_index) {
 #endif
         input->activeGamepadMask |= 1 << state->gs_id;
         input->gamepads_count++;
+        lootnest_controller_seen(name, true, guessed);
         return true;
     } else {
         commons_log_warn("Input", "Unrecognized game controller %s. GUID: %s", name, guidstr);
+        lootnest_controller_seen(name, false, false);
     }
     return false;
 }
@@ -76,6 +85,7 @@ void app_input_close_gamepad(app_input_t *input, SDL_JoystickID sdl_id) {
 #endif
     SDL_GameControllerClose(state->controller);
     commons_log_info("Input", "Controller #%d disconnected, sdl_id: %d", state->gs_id, sdl_id);
+    lootnest_controller_gone();
     app_input_gamepad_state_deinit(state);
 }
 
