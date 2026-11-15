@@ -1,16 +1,16 @@
 {
     "id": "@WEBOS_APPINFO_ID@",
     "version": "@PROJECT_VERSION@",
-    "vendor": "Mariotaku Lee",
+    "vendor": "Lootnest",
     "type": "native",
     "main": "bin/moonlight",
-    "title": "Moonlight",
+    "title": "Lootnest",
     "icon": "icon.png",
-    "iconColor": "#ffffff",
+    "iconColor": "#111217",
     "largeIcon": "icon_large.png",
     "splashBackground": "splash.png",
-    "dialAppName": "Moonlight",
-    "appDescription": "Open Source NVIDIA GameStream Client",
+    "dialAppName": "Lootnest",
+    "appDescription": "Play the games on your PC through Lootnest. Based on Moonlight TV.",
     "supportTouchMode": "full",
     "useAllMouseButtons": true
 }

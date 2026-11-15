@@ -199,6 +199,14 @@ bool ui_dispatch_userevent(app_t *app, int which, void *data1, void *data2) {
                 }
                 return true;
             }
+            case USER_LOOTNEST_QUIT_STREAM: {
+                // Lootnest: Start and Select held for two seconds end the stream.
+                if (app->session != NULL) {
+                    session_interrupt(app->session, true, STREAMING_INTERRUPT_USER);
+                    return true;
+                }
+                return false;
+            }
             case USER_OPEN_OVERLAY: {
                 if (app->session != NULL && !app_ui_is_opened(&app->ui)) {
                     session_interrupt(app->session, false, STREAMING_INTERRUPT_USER);

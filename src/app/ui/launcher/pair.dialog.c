@@ -5,11 +5,13 @@
 #include "errors.h"
 #include "util/i18n.h"
 #include "ui/root.h"
+#include "lootnest.h"
 
 typedef struct {
     lv_fragment_t base;
     uuidstr_t uuid;
     char pin[8];
+    bool from_lootnest;
 
     lv_obj_t *message_label;
     lv_obj_t *pin_label;
@@ -42,6 +44,7 @@ void pair_dialog_open(const uuidstr_t *uuid) {
 static void pair_controller_ctor(lv_fragment_t *self, void *args) {
     pair_dialog_controller_t *controller = (pair_dialog_controller_t *) self;
     controller->uuid = *(const uuidstr_t *) args;
+    controller->from_lootnest = lootnest_take_pin(controller->pin);
 }
 
 static void pair_controller_dtor(lv_fragment_t *self) {
@@ -69,7 +72,8 @@ static lv_obj_t *pair_dialog(lv_fragment_t *self, lv_obj_t *parent) {
     lv_obj_t *message_label = lv_label_create(content);
     lv_obj_set_size(message_label, LV_PCT(100), LV_SIZE_CONTENT);
     lv_label_set_long_mode(message_label, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(message_label, locstr("Enter PIN code on your computer."));
+    lv_label_set_text(message_label, controller->from_lootnest ? locstr("Lootnest is pairing with your PC.")
+                                                                : locstr("Enter PIN code on your computer."));
     controller->message_label = message_label;
 
     lv_obj_t *pin_label = lv_label_create(content);

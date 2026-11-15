@@ -1,6 +1,7 @@
 #include "app.h"
 #include "app_webos.h"
 #include "app_launch.h"
+#include "lootnest.h"
 
 #include <pbnjson.h>
 
@@ -77,6 +78,16 @@ app_launch_params_t *app_handle_launch(app_t *app, int argc, char *argv[]) {
             params->default_app_id = 0;
         }
         free(id_str);
+    }
+    // Lootnest: pair with this PC, with the PIN Lootnest submits for it.
+    jvalue_ref pair_host = jobject_get(params_obj, J_CSTR_TO_BUF("host"));
+    jvalue_ref pair_pin = jobject_get(params_obj, J_CSTR_TO_BUF("pairPin"));
+    if (jis_string(pair_host) && jis_string(pair_pin)) {
+        raw_buffer h = jstring_get(pair_host), p = jstring_get(pair_pin);
+        char *hs = strndup(h.m_str, h.m_len), *ps = strndup(p.m_str, p.m_len);
+        lootnest_set_pairing(hs, ps);
+        free(hs);
+        free(ps);
     }
     jdomparser_release(&parser);
     return params;

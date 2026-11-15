@@ -12,6 +12,7 @@
 #include "backend/apploader/apploader.h"
 #include <errors.h>
 #include <assert.h>
+#include <string.h>
 
 #include "lvgl/lv_ext_utils.h"
 #include "lvgl/util/lv_app_utils.h"
@@ -21,6 +22,7 @@
 #include "util/i18n.h"
 #include "pair.dialog.h"
 #include "ui/common/progress_dialog.h"
+#include "lootnest.h"
 
 typedef void (*action_cb_t)(apps_fragment_t *controller, lv_obj_t *buttons, uint16_t index);
 
@@ -160,6 +162,7 @@ static void apps_controller_ctor(lv_fragment_t *self, void *args) {
     controller->global = arg->global;
     controller->uuid = arg->host;
     controller->def_app = arg->def_app;
+    controller->def_lootnest = arg->def_lootnest;
     controller->apploader = apploader_create(arg->global, &controller->uuid, &controller->apploader_cb, controller);
 
     appitem_style_init(&controller->appitem_style);
@@ -270,6 +273,7 @@ static void obj_will_delete(lv_fragment_t *self, lv_obj_t *obj) {
     apps_fragment_t *fragment = (apps_fragment_t *) self;
     apploader_cancel(fragment->apploader);
     fragment->def_app = 0;
+    fragment->def_lootnest = false;
 }
 
 static void update_grid_config(apps_fragment_t *controller) {
@@ -431,6 +435,13 @@ static void update_view_state(apps_fragment_t *controller) {
             break;
         }
         case SERVER_STATE_OFFLINE: {
+            // Lootnest: wake the PC once by itself, then the usual choices.
+            if (controller->def_lootnest && !controller->lootnest_woke) {
+                controller->lootnest_woke = true;
+                show_error(controller, locstr("Waking your PC"), locstr("This takes up to a minute."), NULL);
+                pcmanager_send_wol(pcmanager, &controller->uuid, send_wol_cb, NULL);
+                break;
+            }
             // server has error
             show_error(controller, locstr("Offline"),
                        locstr("Press \"Wake\" to send Wake-on-LAN packet to turn the computer on if it supports this feature, "
@@ -520,6 +531,14 @@ static void appload_loaded(apploader_list_t *apps, void *userdata) {
         }
         if (app != NULL) {
             launcher_launch_game(fragment, app);
+        }
+    } else if (fragment->def_lootnest && !fragment->def_app_launched) {
+        fragment->def_app_launched = true;
+        for (int i = 0; i < apps->count; ++i) {
+            if (apps->items[i].base.name != NULL && strcmp(apps->items[i].base.name, LOOTNEST_APP_NAME) == 0) {
+                launcher_launch_game(fragment, &apps->items[i]);
+                break;
+            }
         }
     }
 }
