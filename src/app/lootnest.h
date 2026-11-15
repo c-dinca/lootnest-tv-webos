@@ -50,3 +50,15 @@ void lootnest_mark_pair_file_used(void);
 // Notes a step in lootnest-tv.log, which Lootnest on the PC reads when a
 // pairing doesn't finish. The first note of a run starts the file again.
 void lootnest_note(const char *fmt, ...) __attribute__ ((format (printf, 1, 2)));
+
+// A controller SDL has no mapping for (older TVs' SDL knows few): a
+// mapping by the usual button order, Sony's for a Sony pad, else the
+// Linux xpad order. True when one was added for this device.
+bool lootnest_guess_mapping(int device_index);
+
+// Notes a controller that came or went, for the home screen's line.
+void lootnest_controller_seen(const char *name, bool recognized, bool guessed);
+void lootnest_controller_gone(void);
+
+// The home screen's controller line: "" before any was seen.
+const char *lootnest_controller_line(void);

@@ -191,3 +191,83 @@ void lootnest_note(const char *fmt, ...) {
     fputc('\n', f);
     fclose(f);
 }
+
+static char controller_line[160];
+static int controllers_on = 0;
+
+bool lootnest_guess_mapping(int device_index) {
+    SDL_Joystick *js = SDL_JoystickOpen(device_index);
+    if (js == NULL) {
+        lootnest_note("Controller %d couldn't be opened: %s", device_index, SDL_GetError());
+        return false;
+    }
+    int buttons = SDL_JoystickNumButtons(js), axes = SDL_JoystickNumAxes(js), hats = SDL_JoystickNumHats(js);
+    Uint16 vendor = SDL_JoystickGetVendor(js), product = SDL_JoystickGetProduct(js);
+    const char *name = SDL_JoystickName(js);
+    char guid[33];
+    SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(js), guid, sizeof(guid));
+    lootnest_note("Controller without a mapping: %s, %04x:%04x, GUID %s, %d buttons, %d axes, %d hats",
+                  name ? name : "?", vendor, product, guid, buttons, axes, hats);
+    char safe[64];
+    SDL_strlcpy(safe, name ? name : "Controller", sizeof(safe));
+    for (char *c = safe; *c; c++) {
+        if (*c == ',') {
+            *c = ' ';
+        }
+    }
+    SDL_JoystickClose(js);
+    if (buttons < 4 || axes < 2) {
+        return false;
+    }
+    char mapping[640];
+    const char *dpad = hats > 0 ? "dpup:h0.1,dpright:h0.2,dpdown:h0.4,dpleft:h0.8," : "";
+    if (vendor == 0x054c) {
+        // Sony's HID order: square, cross, circle, triangle, L1, R1, L2,
+        // R2, share or create, options, L3, R3, PS; axes X, Y, Z (right
+        // stick X), Rx (L2), Ry (R2), Rz (right stick Y).
+        SDL_snprintf(mapping, sizeof(mapping),
+                     "%s,%s,a:b1,b:b2,x:b0,y:b3,leftshoulder:b4,rightshoulder:b5,back:b8,start:b9,guide:b12,"
+                     "leftstick:b10,rightstick:b11,%sleftx:a0,lefty:a1,rightx:a2,righty:a5,lefttrigger:a3,"
+                     "righttrigger:a4,", guid, safe, dpad);
+    } else {
+        // The Linux xpad order most pads follow.
+        SDL_snprintf(mapping, sizeof(mapping),
+                     "%s,%s,a:b0,b:b1,x:b2,y:b3,leftshoulder:b4,rightshoulder:b5,back:b6,start:b7,guide:b8,"
+                     "leftstick:b9,rightstick:b10,%sleftx:a0,lefty:a1,lefttrigger:a2,rightx:a3,righty:a4,"
+                     "righttrigger:a5,", guid, safe, dpad);
+    }
+    int added = SDL_GameControllerAddMapping(mapping);
+    lootnest_note("Guessed a mapping for %s (%s): %s", safe, vendor == 0x054c ? "Sony order" : "xpad order",
+                  added >= 0 ? "added" : SDL_GetError());
+    return added >= 0;
+}
+
+void lootnest_controller_seen(const char *name, bool recognized, bool guessed) {
+    if (recognized) {
+        controllers_on++;
+    }
+    lootnest_note("Controller %s: %s", name ? name : "?",
+                  !recognized ? "not recognised" : guessed ? "buttons guessed" : "recognised");
+    if (!recognized) {
+        SDL_snprintf(controller_line, sizeof(controller_line), "%s isn't recognised as a controller yet",
+                     name ? name : "This controller");
+    } else if (guessed) {
+        SDL_snprintf(controller_line, sizeof(controller_line), "Controller: %s (buttons guessed)",
+                     name ? name : "connected");
+    } else {
+        SDL_snprintf(controller_line, sizeof(controller_line), "Controller: %s", name ? name : "connected");
+    }
+}
+
+void lootnest_controller_gone(void) {
+    if (controllers_on > 0) {
+        controllers_on--;
+    }
+    if (controllers_on == 0) {
+        SDL_strlcpy(controller_line, "Controller disconnected", sizeof(controller_line));
+    }
+}
+
+const char *lootnest_controller_line(void) {
+    return controller_line;
+}

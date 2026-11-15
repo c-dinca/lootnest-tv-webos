@@ -75,6 +75,7 @@ typedef struct home_fragment_t {
     lv_obj_t *detail;
     lv_obj_t *keys;
     lv_obj_t *hint;
+    lv_obj_t *pad;
     lv_group_t *group;
     lv_timer_t *timer;
     apploader_t *apploader;
@@ -358,6 +359,11 @@ static lv_obj_t *home_create(lv_fragment_t *self, lv_obj_t *container) {
     lv_obj_add_flag(v->hint, LV_OBJ_FLAG_IGNORE_LAYOUT);
     lv_obj_align(v->hint, LV_ALIGN_BOTTOM_MID, 0, -LV_DPX(28));
     lv_label_set_text_static(v->hint, locstr("To come back here while you play, hold Start and Select for two seconds."));
+
+    // Which controller the TV has, or that it isn't recognised.
+    v->pad = label(root, F.small, C_TEXT_2);
+    lv_obj_add_flag(v->pad, LV_OBJ_FLAG_IGNORE_LAYOUT);
+    lv_obj_align(v->pad, LV_ALIGN_BOTTOM_MID, 0, -LV_DPX(52));
     return root;
 }
 
@@ -372,7 +378,7 @@ static void home_created(lv_fragment_t *self, lv_obj_t *obj) {
     lv_obj_add_event_cb(obj, back_pressed, LV_EVENT_CANCEL, v);
     app_input_set_group(&v->global->ui.input, v->group);
     pcmanager_register_listener(pcmanager, &listener, v);
-    v->timer = lv_timer_create(timer_cb, 3000, v);
+    v->timer = lv_timer_create(timer_cb, 1000, v);
     home_view = v;
 
     if (!started) {
@@ -418,11 +424,22 @@ static bool busy(home_state_t s) {
     return s == HOME_START || s == HOME_PAIRING || s == HOME_CONNECTING || s == HOME_WAKING || s == HOME_STARTING;
 }
 
+static void render_pad(home_fragment_t *v) {
+    const char *line = lootnest_controller_line();
+    if (line[0]) {
+        lv_label_set_text(v->pad, line);
+        lv_obj_clear_flag(v->pad, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(v->pad, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
 static void render(void) {
     home_fragment_t *v = home_view;
     if (v == NULL) {
         return;
     }
+    render_pad(v);
     static char pc_line[96], status[128];
     const char *detail = "";
     const char *name = H.pc_name[0] ? H.pc_name : locstr("your PC");
@@ -794,6 +811,9 @@ static void on_pc_updated(const uuidstr_t *uuid, void *userdata) {
 
 static void timer_cb(lv_timer_t *t) {
     LV_UNUSED(t);
+    if (home_view != NULL) {
+        render_pad(home_view);
+    }
     // A pairing request from Lootnest while this screen waits: the app was
     // already open when Lootnest asked.
     if (!busy(H.state) && lootnest_check_pair_file()) {
@@ -805,6 +825,10 @@ static void timer_cb(lv_timer_t *t) {
             set_state(HOME_OFFLINE);
             return;
         }
-        pcmanager_request_update(pcmanager, &H.pc, update_cb, NULL);
+        // Every third second: the PC is asked no more often than before.
+        static int tick = 0;
+        if (++tick % 3 == 0) {
+            pcmanager_request_update(pcmanager, &H.pc, update_cb, NULL);
+        }
     }
 }

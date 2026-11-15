@@ -32,6 +32,10 @@ merged (`git remote add upstream https://github.com/mariotaku/moonlight-tv`):
   `/media/developer/temp/lootnest-tv.log`, which Lootnest reads when a
   pairing doesn't finish.
 - Holding Start and Select for two seconds ends the stream.
+- A controller the TV's SDL has no mapping for gets one by the usual
+  button order (Sony's HID order for a Sony pad, else the Linux xpad
+  order), and the home screen says which controller it sees, or that it
+  isn't recognised; the details go to `lootnest-tv.log`.
 
 ## Build
 
