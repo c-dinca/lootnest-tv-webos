@@ -17,11 +17,15 @@ Kept to as few files as possible, so Moonlight TV's fixes can still be
 merged (`git remote add upstream https://github.com/mariotaku/moonlight-tv`):
 
 - Its name, icon, splash screen and app id (`com.lootnest.tv`).
-- It starts straight into Lootnest: the paired PC's app named "Lootnest",
-  waking the PC first when it's asleep.
+- Its own home screen in Lootnest's look (`src/app/ui/lootnest/`), in
+  place of Moonlight TV's computer list and app grid, which are never
+  shown: it pairs, wakes the PC, opens the PC's app named "Lootnest" and
+  says what it's doing; Play, Settings and Quit when the stream ends.
+  Lootnest's fonts (Tilt Warp, Atkinson Hyperlegible Next; OFL,
+  `src/app/res/fonts/OFL.txt`) and its gem as the logo.
 - Pairing from the launch parameters Lootnest passes when it installs the
-  app (`{"lootnest": {"host": "...", "pin": "1234"}}`), so the PIN never
-  needs typing.
+  app (`{"host": "...", "pairPin": "1234"}`), so the PIN never needs
+  typing.
 - Holding Start and Select for two seconds ends the stream.
 
 ## Build

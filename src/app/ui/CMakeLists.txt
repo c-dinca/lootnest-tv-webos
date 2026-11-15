@@ -10,6 +10,7 @@ target_sources(moonlight-lib PRIVATE
         launcher/appitem.view.c
         launcher/server.context_menu.c
         launcher/coverloader.c
+        lootnest/home.controller.c
         streaming/streaming.view.c
         streaming/streaming.controller.c
         streaming/hints.c
