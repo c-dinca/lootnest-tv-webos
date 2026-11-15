@@ -533,6 +533,10 @@ static void render(void) {
 static void set_state(home_state_t state) {
     if (H.state != state) {
         commons_log_info("Lootnest", "Home: %d -> %d", H.state, state);
+        static const char *names[] = {"start", "pairing", "connecting", "waking", "starting", "ready", "no PC",
+                                      "offline", "unpaired", "no app", "error"};
+        lootnest_note("Screen: %s%s%s", names[state], state == HOME_ERROR ? ": " : "",
+                      state == HOME_ERROR ? H.detail : "");
     }
     H.state = state;
     render();
@@ -558,6 +562,7 @@ static void remember_pc(const uuidstr_t *uuid) {
 
 static void pair_cb(int result, const char *error, const uuidstr_t *uuid, void *userdata) {
     LV_UNUSED(userdata);
+    lootnest_note("Pairing: %s", result == GS_OK ? "done" : (error ? error : "no answer"));
     if (result != GS_OK) {
         commons_log_warn("Lootnest", "Pairing failed: %s", error ? error : "no answer");
         fail(locstr("The PC didn't finish pairing"), error);
@@ -577,6 +582,7 @@ static void pair(void) {
 
 static void added_cb(int result, const char *error, const uuidstr_t *uuid, void *userdata) {
     LV_UNUSED(userdata);
+    lootnest_note("Reaching the PC: %s", result == GS_OK && uuid != NULL ? "answered" : (error ? error : "no answer"));
     if (result != GS_OK || uuid == NULL) {
         commons_log_warn("Lootnest", "Couldn't reach the PC to pair: %s", error ? error : "no answer");
         fail(locstr("The TV couldn't reach your PC"), error);
@@ -625,7 +631,12 @@ static void begin(void) {
     H.woke = false;
     H.detail[0] = '\0';
     char host[128];
-    if (lootnest_take_pairing_host(host, sizeof(host))) {
+    // Launch parameters, else a request Lootnest left on the TV.
+    bool asked = lootnest_take_pairing_host(host, sizeof(host));
+    if (!asked && lootnest_check_pair_file()) {
+        asked = lootnest_take_pairing_host(host, sizeof(host));
+    }
+    if (asked) {
         H.pin_pending = lootnest_take_pin(H.pin);
         hostport_t *hp = hostport_parse(host);
         if (hp != NULL) {
@@ -781,6 +792,12 @@ static void on_pc_updated(const uuidstr_t *uuid, void *userdata) {
 
 static void timer_cb(lv_timer_t *t) {
     LV_UNUSED(t);
+    // A pairing request from Lootnest while this screen waits: the app was
+    // already open when Lootnest asked.
+    if (!busy(H.state) && lootnest_check_pair_file()) {
+        begin();
+        return;
+    }
     if (H.state == HOME_WAKING && H.has_pc) {
         if (SDL_TICKS_PASSED(SDL_GetTicks(), H.wake_until)) {
             set_state(HOME_OFFLINE);

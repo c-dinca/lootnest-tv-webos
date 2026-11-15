@@ -1,6 +1,9 @@
 #include "lootnest.h"
 
 #include <ctype.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <SDL.h>
@@ -35,6 +38,7 @@ void lootnest_set_pairing(const char *host, const char *pin) {
     SDL_strlcpy(pair_host, host, sizeof(pair_host));
     SDL_strlcpy(pair_pin, pin, sizeof(pair_pin));
     commons_log_info("Lootnest", "Asked to pair with %s", pair_host);
+    lootnest_note("Asked to pair with %s", pair_host);
 }
 
 bool lootnest_take_pairing_host(char *host, int size) {
@@ -89,4 +93,77 @@ void lootnest_gamepad_buttons(int buttons, int start_flag, int select_flag) {
         SDL_RemoveTimer(quit_timer);
         quit_timer = 0;
     }
+}
+
+const char *lootnest_temp_dir(void) {
+    const char *dir = getenv("LOOTNEST_TEMP");
+    return dir != NULL && dir[0] ? dir : "/media/developer/temp";
+}
+
+// value finds "key": "value" in the small JSON Lootnest writes.
+static bool json_value(const char *json, const char *key, char *out, size_t size) {
+    char needle[40];
+    SDL_snprintf(needle, sizeof(needle), "\"%s\"", key);
+    const char *at = strstr(json, needle);
+    if (at == NULL) {
+        return false;
+    }
+    at = strchr(at + strlen(needle), '"');
+    if (at == NULL) {
+        return false;
+    }
+    at++;
+    const char *end = strchr(at, '"');
+    if (end == NULL || (size_t) (end - at) >= size) {
+        return false;
+    }
+    memcpy(out, at, end - at);
+    out[end - at] = '\0';
+    return true;
+}
+
+static char used_request[64];
+
+bool lootnest_check_pair_file(void) {
+    char path[256];
+    SDL_snprintf(path, sizeof(path), "%s/lootnest-pair.json", lootnest_temp_dir());
+    FILE *f = fopen(path, "rb");
+    if (f == NULL) {
+        return false;
+    }
+    char json[512];
+    size_t n = fread(json, 1, sizeof(json) - 1, f);
+    fclose(f);
+    json[n] = '\0';
+    char id[64], host[128], pin[8];
+    if (!json_value(json, "id", id, sizeof(id)) || !json_value(json, "host", host, sizeof(host)) ||
+        !json_value(json, "pairPin", pin, sizeof(pin))) {
+        lootnest_note("lootnest-pair.json can't be read");
+        return false;
+    }
+    if (strcmp(id, used_request) == 0) {
+        return false;
+    }
+    SDL_strlcpy(used_request, id, sizeof(used_request));
+    lootnest_note("Pairing request %s from lootnest-pair.json", id);
+    lootnest_set_pairing(host, pin);
+    return pair_host[0] != '\0';
+}
+
+void lootnest_note(const char *fmt, ...) {
+    static bool started_log = false;
+    char path[256];
+    SDL_snprintf(path, sizeof(path), "%s/lootnest-tv.log", lootnest_temp_dir());
+    FILE *f = fopen(path, started_log ? "ab" : "wb");
+    if (f == NULL) {
+        return;
+    }
+    started_log = true;
+    fprintf(f, "[%u] ", (unsigned) (SDL_GetTicks() / 1000));
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(f, fmt, ap);
+    va_end(ap);
+    fputc('\n', f);
+    fclose(f);
 }

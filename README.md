@@ -25,7 +25,12 @@ merged (`git remote add upstream https://github.com/mariotaku/moonlight-tv`):
   `src/app/res/fonts/OFL.txt`) and its gem as the logo.
 - Pairing from the launch parameters Lootnest passes when it installs the
   app (`{"host": "...", "pairPin": "1234"}`), so the PIN never needs
-  typing.
+  typing; or from `/media/developer/temp/lootnest-pair.json` (with an
+  `id`), which Lootnest writes over SSH and the home screen reads at start
+  and every few seconds while it waits, since an app that's already open
+  never gets new launch parameters. The steps go to
+  `/media/developer/temp/lootnest-tv.log`, which Lootnest reads when a
+  pairing doesn't finish.
 - Holding Start and Select for two seconds ends the stream.
 
 ## Build

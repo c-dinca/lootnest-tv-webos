@@ -32,3 +32,17 @@ bool lootnest_first_paired(uuidstr_t *out);
 // Ends the stream (as Quit in its menu) when Start and Select are held
 // together for two seconds; buttons is the gamepad's button flags.
 void lootnest_gamepad_buttons(int buttons, int start_flag, int select_flag);
+
+// The folder developer mode shares between the TV's developer sessions and
+// its developer apps; Lootnest on the PC writes there over SSH. The
+// LOOTNEST_TEMP environment variable replaces it (desktop tests).
+const char *lootnest_temp_dir(void);
+
+// A pairing request Lootnest left in lootnest-pair.json, for an app that
+// was already open or didn't get the launch parameters: true when there's
+// one not used yet in this run, which then becomes the pairing to do.
+bool lootnest_check_pair_file(void);
+
+// Notes a step in lootnest-tv.log, which Lootnest on the PC reads when a
+// pairing doesn't finish. The first note of a run starts the file again.
+void lootnest_note(const char *fmt, ...) __attribute__ ((format (printf, 1, 2)));
