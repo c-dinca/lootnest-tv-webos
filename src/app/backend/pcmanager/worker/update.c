@@ -32,6 +32,11 @@ int pcmanager_update_by_host(worker_context_t *context, const char *ip, uint16_t
     ret = gs_get_status(client, server, strdup(ip), port, app_configuration->unsupported);
     if (ret == GS_OK) {
         SERVER_STATE state = {.code = server->paired ? SERVER_STATE_AVAILABLE : SERVER_STATE_NOT_PAIRED};
+        // Lootnest: a host added by its address has no id yet; the callback
+        // gets the one it answered with, so it can find the host it added.
+        if (uuidstr_is_empty(&context->uuid) && server->uuid != NULL) {
+            uuidstr_fromstr(&context->uuid, server->uuid);
+        }
         pclist_upsert(manager, (const uuidstr_t *) server->uuid, &state, server);
     } else {
         const char *error = NULL;
