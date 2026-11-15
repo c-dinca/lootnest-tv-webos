@@ -40,9 +40,12 @@ void app_init_locale() {
 app_launch_params_t *app_handle_launch(app_t *app, int argc, char *argv[]) {
     (void) app;
     if (argc < 2) {
+        lootnest_note("Launched without parameters");
         return NULL;
     }
     commons_log_info("APP", "Launched with parameters %s", argv[1]);
+    lootnest_note("Launched with parameters (%zu characters)%s", strlen(argv[1]),
+                  strstr(argv[1], "pairPin") != NULL ? ", with a pairing" : "");
     JSchemaInfo schema_info;
     jschema_info_init(&schema_info, jschema_all(), NULL, NULL);
     jdomparser_ref parser = jdomparser_create(&schema_info, 0);
