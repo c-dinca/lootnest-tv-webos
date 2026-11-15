@@ -20,7 +20,7 @@ lv_obj_t *settings_win_create(lv_fragment_t *self, lv_obj_t *parent) {
     lv_obj_set_style_pad_gap(header, 0, 0);
     lv_obj_set_style_pad_left(header, 0, 0);
     lv_obj_set_style_pad_right(header, lv_dpx(20), 0);
-    lv_obj_set_style_bg_color(header, lv_color_darken(lv_color_hex(0x2f3237), 4), 0);
+    lv_obj_set_style_bg_color(header, lv_color_hex(0x181a21), 0);
 
     lv_obj_t *icon = lv_img_create(header);
     lv_obj_set_size(icon, LV_DPX(NAV_WIDTH_COLLAPSED), LV_DPX(50));

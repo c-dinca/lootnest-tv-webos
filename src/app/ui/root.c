@@ -11,6 +11,7 @@
 
 #include "streaming/streaming.controller.h"
 #include "launcher/launcher.controller.h"
+#include "lootnest/home.controller.h"
 
 #include "logging.h"
 #include "util/bus.h"
@@ -98,8 +99,9 @@ void app_ui_open(app_ui_t *ui, bool open_launcher, const app_launch_params_t *pa
     lv_obj_set_style_bg_opa(ui->container, 0, 0);
     ui->fm = lv_fragment_manager_create(NULL);
     if (open_launcher) {
-        launcher_fragment_args_t args = {.app = ui->app, .params = params};
-        lv_fragment_t *fragment = lv_fragment_create(&launcher_controller_class, &args);
+        // Lootnest: its own home screen instead of Moonlight TV's launcher.
+        home_fragment_args_t args = {.app = ui->app, .params = params};
+        lv_fragment_t *fragment = lv_fragment_create(&home_controller_class, &args);
         lv_fragment_manager_push(ui->fm, fragment, &ui->container);
     }
 
@@ -311,7 +313,7 @@ SDL_Window *app_ui_create_window(app_ui_t *ui) {
         win_width = app_configuration->window_state.w;
         win_height = app_configuration->window_state.h;
     }
-    SDL_Window *win = SDL_CreateWindow("Moonlight", win_x, win_y, win_width, win_height, win_flags);
+    SDL_Window *win = SDL_CreateWindow("Lootnest", win_x, win_y, win_width, win_height, win_flags);
     if (win == NULL) {
 #ifdef TARGET_WEBOS
         // For webOS 24 (9.0), unpopulated jailer config could cause graphics driver initialization failure
