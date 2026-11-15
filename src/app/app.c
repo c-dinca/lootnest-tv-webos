@@ -6,6 +6,7 @@
 #include "lvgl/util/lv_app_utils.h"
 
 #include "app.h"
+#include "lootnest.h"
 #include "config.h"
 
 #include "logging.h"
@@ -325,6 +326,11 @@ static void libs_init(app_t *app, int argc, char *argv[]) {
                      module_preferences.video_module);
     commons_log_info("APP", "Audio module: %s (requested %s)", SS4S_ModuleInfoGetName(app->ss4s.selection.audio_module),
                      module_preferences.audio_module);
+    lootnest_note("Picture by %s, sound by %s (asked for %s and %s)",
+                  SS4S_ModuleInfoGetName(app->ss4s.selection.video_module),
+                  SS4S_ModuleInfoGetName(app->ss4s.selection.audio_module),
+                  module_preferences.video_module ? module_preferences.video_module : "auto",
+                  module_preferences.audio_module ? module_preferences.audio_module : "auto");
 
 #if FEATURE_EMBEDDED_SHELL
     if (!app_is_decoder_valid(app)) {
