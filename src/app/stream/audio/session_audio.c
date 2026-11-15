@@ -1,3 +1,4 @@
+#include "lootnest.h"
 #include <stdlib.h>
 #include <assert.h>
 
@@ -84,6 +85,9 @@ static int aud_init(int audioConfiguration, const POPUS_MULTISTREAM_CONFIGURATIO
     // aud_cleanup only runs once the audio stream has started, so a failed init has to release
     // what it allocated itself.
     SS4S_AudioOpenResult result = SS4S_PlayerAudioOpen(player, &info);
+    lootnest_note("Sound: %s, %d channels at %d Hz, decoded %s: %s", SS4S_AudioCodecName(codec), opusConfig->channelCount,
+                  opusConfig->sampleRate, codec == SS4S_AUDIO_OPUS ? "by the TV" : "by the app",
+                  result == SS4S_AUDIO_OPEN_OK ? "opened" : "the TV didn't open it");
     if (result != SS4S_AUDIO_OPEN_OK) {
         aud_buffers_free();
     }
