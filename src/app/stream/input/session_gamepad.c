@@ -9,6 +9,7 @@
 #include "util/user_event.h"
 #include "input/input_gamepad.h"
 #include "stream/session.h"
+#include "lootnest.h"
 #include "stream/input/session_virt_mouse.h"
 #include "logging.h"
 
@@ -237,6 +238,7 @@ void stream_input_handle_cbutton(stream_input_t *input, const SDL_ControllerButt
     } else {
         gamepad->buttons &= ~button;
     }
+    lootnest_gamepad_buttons(gamepad->buttons, PLAY_FLAG, BACK_FLAG);
 
     if (gamepad_combo_check(gamepad->buttons, QUIT_BUTTONS)) {
         quit_combo_pressed = true;

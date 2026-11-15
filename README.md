@@ -1,41 +1,37 @@
-# Moonlight TV
+# Lootnest for TV (webOS)
 
-Moonlight TV is a community version of [Moonlight GameStream Client](https://moonlight-stream.org/), made for large
-screens. It works on LG webOS powered TVs, and Raspberry Pi running Raspbian.
+The TV app of [Lootnest](https://github.com/c-dinca/lootnest), the Windows
+game manager with profiles: it plays the games on your PC on an LG TV, with
+a controller, inside Lootnest's TV mode. Lootnest on the PC installs this
+app on the TV and pairs it; nothing needs typing on the TV.
 
-![Download Stats](https://img.shields.io/github/downloads/mariotaku/moonlight-tv/total)
+This is a fork of [Moonlight TV](https://github.com/mariotaku/moonlight-tv)
+by Mariotaku Lee and its contributors, itself a client of the
+[Moonlight](https://moonlight-stream.org/) GameStream protocol. All the
+streaming, decoding and input in this app is their work. Their README is
+kept as [README.moonlight-tv.md](README.moonlight-tv.md).
 
-## Features
+## What this fork changes
 
-* High performance streaming for webOS
-* UI optimized for large screen and remote controller
-* Supports up to 4 controllers
-* Easy to port to other OSes (Now runs on macOS, Arch, Debian, Raspbian and Windows)
+Kept to as few files as possible, so Moonlight TV's fixes can still be
+merged (`git remote add upstream https://github.com/mariotaku/moonlight-tv`):
 
-## Screenshots
+- Its name, icon, splash screen and app id (`com.lootnest.tv`).
+- It starts straight into Lootnest: the paired PC's app named "Lootnest",
+  waking the PC first when it's asleep.
+- Pairing from the launch parameters Lootnest passes when it installs the
+  app (`{"lootnest": {"host": "...", "pin": "1234"}}`), so the PIN never
+  needs typing.
+- Holding Start and Select for two seconds ends the stream.
 
-![Launcher](https://user-images.githubusercontent.com/830358/141690137-529d3b94-b56a-4f24-a3c5-00a56eb30952.png)
+## Build
 
-![Settings](https://user-images.githubusercontent.com/830358/147389849-6907f614-dbd4-4c24-987e-1a214a9680d0.png)
+As Moonlight TV: see [README.moonlight-tv.md](README.moonlight-tv.md) and
+`.github/workflows/build-webos.yml`, which builds the `.ipk` on every push.
 
-![In-game Overlay](https://user-images.githubusercontent.com/830358/141690146-27ee2564-0cc8-43ef-a5b0-54b8487dda1e.png)
-_Screenshot performed on TV has lower picture quality. Actual picture quality is better._
+## License
 
-## Download
-
-### For webOS
-
-[Easy installation with dev-manager-desktop](https://github.com/webosbrew/dev-manager-desktop) (recommended)
-
-Or download IPK from [Latest release](https://github.com/mariotaku/moonlight-tv/releases/latest)
-
-### For Raspbian
-
-Download DEB from [Latest release](https://github.com/mariotaku/moonlight-tv/releases/latest)
-
-## [Documentations](https://github.com/mariotaku/moonlight-tv/wiki)
-
-## Credits
-
-* [moonlight-embedded](https://github.com/irtimmer/moonlight-embedded), for original libgamestream and decoder
-  components
+GNU General Public License v3.0, the same as Moonlight TV: see
+[LICENSE.txt](LICENSE.txt). The libraries under `core/` and `third_party/`
+keep their own licenses. "Moonlight" is used here only to say where this
+app comes from; it isn't this app's name.

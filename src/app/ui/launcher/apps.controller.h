@@ -24,6 +24,8 @@ typedef struct {
 
     int def_app;
     bool def_app_launched;
+    bool def_lootnest; // start the app named Lootnest once it's listed
+    bool lootnest_woke;
 
     bool show_hidden_apps;
 
@@ -58,6 +60,7 @@ typedef struct {
     app_t *global;
     uuidstr_t host;
     int def_app;
+    bool def_lootnest;
 } apps_fragment_arg_t;
 
 extern const lv_fragment_class_t apps_controller_class;

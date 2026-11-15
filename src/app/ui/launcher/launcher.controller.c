@@ -1,5 +1,6 @@
 #include "app.h"
 #include "app_launch.h"
+#include "lootnest.h"
 
 #include "add.dialog.h"
 #include "apps.controller.h"
@@ -19,6 +20,7 @@
 #include "util/i18n.h"
 #include "util/user_event.h"
 #include "logging.h"
+#include "errors.h"
 
 static void launcher_controller(lv_fragment_t *self, void *args);
 
@@ -75,6 +77,8 @@ static void show_conf_persistent_error();
 static void decoder_error_cb(lv_event_t *e);
 
 static void populate_selected_host(launcher_fragment_t *controller);
+
+static void lootnest_start(launcher_fragment_t *controller);
 
 const lv_fragment_class_t launcher_controller_class = {
         .constructor_cb = launcher_controller,
@@ -171,6 +175,7 @@ static void launcher_view_init(lv_fragment_t *self, lv_obj_t *view) {
     update_pclist(fragment);
 
     populate_selected_host(fragment);
+    lootnest_start(fragment);
 
     for (const pclist_t *cur = pcmanager_servers(pcmanager); cur != NULL; cur = cur->next) {
         if (cur->selected) {
@@ -285,6 +290,8 @@ static void select_pc(launcher_fragment_t *controller, const uuidstr_t *uuid, bo
             controller->def_app_requested = true;
             arg.def_app = params->default_app_id;
         }
+        // Lootnest: the first PC opened in this run starts Lootnest by itself.
+        arg.def_lootnest = arg.def_app == 0 && lootnest_take_autolaunch();
         lv_fragment_t *fragment = lv_fragment_create(&apps_controller_class, &arg);
         lv_fragment_manager_replace(controller->base.child_manager, fragment, &controller->detail);
     } else {
@@ -512,5 +519,35 @@ static void populate_selected_host(launcher_fragment_t *controller) {
             controller->def_host_selected = true;
             break;
         }
+    }
+}
+// Lootnest: with no PC named by the launch, open the first paired one, and
+// pair with the PC Lootnest named in the launch parameters.
+static void lootnest_added_cb(int result, const char *error, const uuidstr_t *uuid, void *userdata) {
+    LV_UNUSED(userdata);
+    launcher_fragment_t *controller = launcher_instance();
+    if (result != GS_OK || uuid == NULL || controller == NULL) {
+        commons_log_warn("Lootnest", "Couldn't reach the PC to pair: %s", error ? error : "no answer");
+        return;
+    }
+    launcher_select_server(controller, uuid);
+}
+
+static void lootnest_start(launcher_fragment_t *controller) {
+    char host[128];
+    if (lootnest_take_pairing_host(host, sizeof(host))) {
+        hostport_t *hp = hostport_parse(host);
+        if (hp != NULL) {
+            pcmanager_manual_add(pcmanager, hp, lootnest_added_cb, controller);
+            return;
+        }
+    }
+    if (controller->def_host_selected) {
+        return;
+    }
+    uuidstr_t first;
+    if (lootnest_first_paired(&first)) {
+        pcmanager_select(pcmanager, &first);
+        controller->def_host_selected = true;
     }
 }
