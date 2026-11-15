@@ -1,4 +1,6 @@
 #include "priv.h"
+
+#include <string.h>
 #include "client.h"
 #include "util/bus.h"
 #include "logging.h"
@@ -21,7 +23,7 @@ bool pcmanager_pair(pcmanager_t *manager, const uuidstr_t *uuid, char *pin, pcma
         commons_log_info("PCManager", "The server %s is in game", server->hostname);
     }
     // Lootnest: a PIN given in advance (lootnest_take_pin) is used as it is.
-    if (SDL_strlen(pin) != 4 || SDL_strspn(pin, "0123456789") != 4) {
+    if (strlen(pin) != 4 || strspn(pin, "0123456789") != 4) {
         int pin_num = pin_random(0, 9999);
         SDL_snprintf(pin, 5, "%04d", pin_num);
     }
