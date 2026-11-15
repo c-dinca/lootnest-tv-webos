@@ -1,7 +1,11 @@
 name: Release
-run-name: "Release ${{ github.event.release.tag_name }}"
+run-name: "Release ${{ github.event.release.tag_name || github.ref_name }}"
 
+# A pushed tag such as v1.0.0 makes the release; a release published by
+# hand gets its package too.
 on:
+  push:
+    tags: [ "v*.*.*" ]
   release:
     types: [ published ]
 
@@ -56,9 +60,11 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.event.release.tag_name }}
+          tag: ${{ github.event.release.tag_name || github.ref_name }}
+          name: Lootnest for TV ${{ github.event.release.tag_name || github.ref_name }}
+          body: "Lootnest for TV for LG webOS TVs. Lootnest on the PC installs it from Settings, TV, Add an LG TV. Based on Moonlight TV (GPL v3); the source is this repository at this tag."
           allowUpdates: true
           omitNameDuringUpdate: true
-          omitBody: true
+          omitBodyDuringUpdate: true
           omitPrereleaseDuringUpdate: true
           artifacts: dist/*.ipk,dist/*_dbgsym.tar.gz,dist/*.manifest.json
