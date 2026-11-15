@@ -124,6 +124,30 @@ static bool json_value(const char *json, const char *key, char *out, size_t size
 
 static char used_request[64];
 
+static bool read_pair_file(char *id, size_t id_size, char *host, size_t host_size, char *pin, size_t pin_size);
+
+void lootnest_mark_pair_file_used(void) {
+    char id[64], host[128], pin[8];
+    if (read_pair_file(id, sizeof(id), host, sizeof(host), pin, sizeof(pin))) {
+        SDL_strlcpy(used_request, id, sizeof(used_request));
+    }
+}
+
+static bool read_pair_file(char *id, size_t id_size, char *host, size_t host_size, char *pin, size_t pin_size) {
+    char path[256];
+    SDL_snprintf(path, sizeof(path), "%s/lootnest-pair.json", lootnest_temp_dir());
+    FILE *f = fopen(path, "rb");
+    if (f == NULL) {
+        return false;
+    }
+    char json[512];
+    size_t n = fread(json, 1, sizeof(json) - 1, f);
+    fclose(f);
+    json[n] = '\0';
+    return json_value(json, "id", id, id_size) && json_value(json, "host", host, host_size) &&
+           json_value(json, "pairPin", pin, pin_size);
+}
+
 bool lootnest_check_pair_file(void) {
     char path[256];
     SDL_snprintf(path, sizeof(path), "%s/lootnest-pair.json", lootnest_temp_dir());

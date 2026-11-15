@@ -43,6 +43,10 @@ const char *lootnest_temp_dir(void);
 // one not used yet in this run, which then becomes the pairing to do.
 bool lootnest_check_pair_file(void);
 
+// Marks the request in lootnest-pair.json as used, when the same pairing
+// came with the launch parameters.
+void lootnest_mark_pair_file_used(void);
+
 // Notes a step in lootnest-tv.log, which Lootnest on the PC reads when a
 // pairing doesn't finish. The first note of a run starts the file again.
 void lootnest_note(const char *fmt, ...) __attribute__ ((format (printf, 1, 2)));

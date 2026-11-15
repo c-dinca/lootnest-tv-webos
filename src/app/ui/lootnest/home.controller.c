@@ -633,7 +633,9 @@ static void begin(void) {
     char host[128];
     // Launch parameters, else a request Lootnest left on the TV.
     bool asked = lootnest_take_pairing_host(host, sizeof(host));
-    if (!asked && lootnest_check_pair_file()) {
+    if (asked) {
+        lootnest_mark_pair_file_used();
+    } else if (lootnest_check_pair_file()) {
         asked = lootnest_take_pairing_host(host, sizeof(host));
     }
     if (asked) {
