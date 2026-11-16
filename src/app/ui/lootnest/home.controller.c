@@ -403,6 +403,13 @@ static lv_obj_t *home_create(lv_fragment_t *self, lv_obj_t *container) {
     v->pad = label(root, F.small, C_TEXT_2);
     lv_obj_add_flag(v->pad, LV_OBJ_FLAG_IGNORE_LAYOUT);
     lv_obj_align(v->pad, LV_ALIGN_BOTTOM_MID, 0, -LV_DPX(52));
+
+    // Which version this is, in a corner: what's on the TV is otherwise
+    // only known to Lootnest on the PC.
+    lv_obj_t *version = label(root, F.small, C_TEXT_3);
+    lv_obj_add_flag(version, LV_OBJ_FLAG_IGNORE_LAYOUT);
+    lv_obj_align(version, LV_ALIGN_BOTTOM_RIGHT, -LV_DPX(28), -LV_DPX(28));
+    lv_label_set_text_static(version, "Lootnest for TV " APP_VERSION);
     return root;
 }
 
