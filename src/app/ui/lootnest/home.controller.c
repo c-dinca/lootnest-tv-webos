@@ -27,7 +27,6 @@
 #define C_GROUND   0x111217
 #define C_RAISED   0x181a21
 #define C_KEY      0x1f222b
-#define C_KEY_LIT  0x2a2e39
 #define C_TEXT     0xDFE5EB
 #define C_TEXT_2   0xa6aeb9
 #define C_TEXT_3   0x8c94a0
@@ -181,12 +180,31 @@ static void key_nav(lv_event_t *e);
 
 static void back_pressed(lv_event_t *e);
 
+// A key changes over 160 ms, as the focus does on the PC.
+static const lv_style_prop_t key_tr_props[] = {LV_STYLE_BG_COLOR, LV_STYLE_TEXT_COLOR, LV_STYLE_TRANSFORM_WIDTH,
+                                               LV_STYLE_TRANSFORM_HEIGHT, 0};
+static lv_style_transition_dsc_t key_tr;
+static bool key_tr_ready = false;
+
 static lv_obj_t *add_key(home_fragment_t *v, const char *text, key_action_t action, bool primary) {
+    if (!key_tr_ready) {
+        lv_style_transition_dsc_init(&key_tr, key_tr_props, lv_anim_path_ease_out, 160, 0, NULL);
+        key_tr_ready = true;
+    }
     lv_obj_t *key = lv_btn_create(v->keys);
     lv_obj_remove_style_all(key);
     lv_obj_set_style_bg_opa(key, LV_OPA_COVER, 0);
+    // The focus, as in Lootnest's Big Picture on the PC: a key in focus
+    // lights up (Ice Grey, dark words) and grows a little; the main key
+    // keeps its red and takes a ring instead.
     lv_obj_set_style_bg_color(key, lv_color_hex(primary ? C_RED : C_KEY), 0);
-    lv_obj_set_style_bg_color(key, lv_color_hex(primary ? 0xF4475C : C_KEY_LIT), LV_STATE_FOCUSED);
+    lv_obj_set_style_bg_color(key, lv_color_hex(primary ? C_RED : C_TEXT), LV_STATE_FOCUSED);
+    lv_obj_set_style_text_color(key, lv_color_hex(primary ? C_GROUND : C_TEXT), 0);
+    lv_obj_set_style_text_color(key, lv_color_hex(C_GROUND), LV_STATE_FOCUSED);
+    lv_obj_set_style_transform_width(key, LV_DPX(3), LV_STATE_FOCUSED);
+    lv_obj_set_style_transform_height(key, LV_DPX(2), LV_STATE_FOCUSED);
+    lv_obj_set_style_transition(key, &key_tr, 0);
+    lv_obj_set_style_transition(key, &key_tr, LV_STATE_FOCUSED);
     lv_obj_set_style_radius(key, LV_DPX(8), 0);
     lv_obj_set_style_pad_hor(key, LV_DPX(26), 0);
     lv_obj_set_style_pad_ver(key, LV_DPX(12), 0);
@@ -195,15 +213,16 @@ static lv_obj_t *add_key(home_fragment_t *v, const char *text, key_action_t acti
     lv_obj_set_style_border_width(key, 1, 0);
     lv_obj_set_style_border_color(key, lv_color_white(), 0);
     lv_obj_set_style_border_opa(key, primary ? LV_OPA_30 : LV_OPA_10, 0);
-    lv_obj_set_style_outline_width(key, LV_DPX(3), LV_STATE_FOCUSED);
-    lv_obj_set_style_outline_pad(key, LV_DPX(3), LV_STATE_FOCUSED);
-    lv_obj_set_style_outline_color(key, lv_color_hex(C_TEXT), LV_STATE_FOCUSED);
-    lv_obj_set_style_outline_opa(key, LV_OPA_COVER, LV_STATE_FOCUSED);
+    if (primary) {
+        lv_obj_set_style_outline_width(key, LV_DPX(3), LV_STATE_FOCUSED);
+        lv_obj_set_style_outline_pad(key, LV_DPX(3), LV_STATE_FOCUSED);
+        lv_obj_set_style_outline_color(key, lv_color_hex(C_TEXT), LV_STATE_FOCUSED);
+        lv_obj_set_style_outline_opa(key, LV_OPA_COVER, LV_STATE_FOCUSED);
+    }
     lv_obj_set_style_translate_y(key, 1, LV_STATE_PRESSED);
 
     lv_obj_t *label = lv_label_create(key);
-    lv_obj_set_style_text_font(label, F.key, 0);
-    lv_obj_set_style_text_color(label, lv_color_hex(primary ? C_GROUND : C_TEXT), 0);
+    lv_obj_set_style_text_font(label, F.key, 0); // its colour is the key's, so it changes with the focus
     lv_label_set_text(label, text);
     lv_obj_center(label);
 
