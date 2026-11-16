@@ -13,6 +13,7 @@
 #include "stream/connection/session_connection.h"
 #include "stream/session_priv.h"
 #include "app.h"
+#include "lootnest.h"
 
 #include <SDL.h>
 #include <assert.h>
@@ -87,6 +88,7 @@ int vdec_delegate_setup(int videoFormat, int width, int height, int redrawRate, 
     vdec_stream_info.format = video_format_name(videoFormat);
     lastFrameNumber = 0;
     need_idr_on_resume = false;
+    lootnest_stream_begin(vdec_stream_info.format, width, height, redrawRate);
     SS4S_VideoInfo info = {
             .width = width,
             .height = height,
@@ -143,6 +145,7 @@ int vdec_delegate_setup(int videoFormat, int width, int height, int redrawRate, 
 
 void vdec_delegate_cleanup() {
     assert(player != NULL);
+    lootnest_stream_end();
     vdec_buffer_free();
     SS4S_PlayerVideoClose(player);
     session = NULL;
@@ -257,6 +260,9 @@ void vdec_stat_submit(const struct VIDEO_STATS *src, unsigned long now) {
     dst->receivedFps = (float) dst->receivedFrames / ((float) delta / 1000);
     dst->decodedFps = (float) dst->submittedFrames / ((float) delta / 1000);
     LiGetEstimatedRttInfo(&dst->rtt, &dst->rttVariance);
+    lootnest_stream_second(dst->totalFrames, dst->receivedFrames, dst->networkDroppedFrames, dst->submittedFrames,
+                           dst->totalCaptureLatency, dst->totalReassemblyTimeUs, dst->totalSubmitTimeUs, dst->rtt,
+                           dst->rttVariance);
     if (!streaming_stats_shown()) {
         return;
     }

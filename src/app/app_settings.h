@@ -63,6 +63,9 @@ typedef struct app_settings_t {
     bool hdr;
     bool hevc;
     bool av1;
+    // Lootnest: which of its picture settings these already are (0: none,
+    // Moonlight's own defaults or settings from an older version).
+    int lootnest_tuned;
     int stick_deadzone;
 
     char *conf_dir;

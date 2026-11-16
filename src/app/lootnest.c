@@ -271,3 +271,92 @@ void lootnest_controller_gone(void) {
 const char *lootnest_controller_line(void) {
     return controller_line;
 }
+
+bool lootnest_tune_picture(struct app_settings_t *settings) {
+    if (settings->lootnest_tuned >= 1) {
+        return false;
+    }
+    lootnest_note("Picture asked for was %dx%d at %d, %d kbps; now 1920x1080 at 60, 25000 kbps",
+                  settings->stream.width, settings->stream.height, settings->stream.fps, settings->stream.bitrate);
+    settings->stream.width = 1920;
+    settings->stream.height = 1080;
+    settings->stream.fps = 60;
+    settings->stream.bitrate = 25000;
+    settings->hevc = true;
+    settings->lootnest_tuned = 1;
+    return true;
+}
+
+// One stream's counts. A second is "bad" when the network lost a frame in it.
+static struct {
+    bool on;
+    char format[24];
+    int width, height, fps;
+    unsigned seconds, bad_seconds;
+    unsigned long frames, received, lost, shown;
+    unsigned long long host_tenths_ms, reassembly_us, submit_us;
+    unsigned worst_lost, rtt_max, rtt_var_max;
+    unsigned long long rtt_sum;
+} stream_sum;
+
+void lootnest_stream_begin(const char *format, int width, int height, int fps) {
+    memset(&stream_sum, 0, sizeof(stream_sum));
+    stream_sum.on = true;
+    snprintf(stream_sum.format, sizeof(stream_sum.format), "%s", format ? format : "?");
+    stream_sum.width = width;
+    stream_sum.height = height;
+    stream_sum.fps = fps;
+    lootnest_note("Stream: started, %s %dx%d at %d", stream_sum.format, width, height, fps);
+}
+
+void lootnest_stream_second(unsigned frames, unsigned received, unsigned lost, unsigned shown, unsigned host_tenths_ms,
+                            unsigned reassembly_us, unsigned submit_us, unsigned rtt_ms, unsigned rtt_var_ms) {
+    if (!stream_sum.on) {
+        return;
+    }
+    stream_sum.seconds++;
+    stream_sum.frames += frames;
+    stream_sum.received += received;
+    stream_sum.lost += lost;
+    stream_sum.shown += shown;
+    stream_sum.host_tenths_ms += host_tenths_ms;
+    stream_sum.reassembly_us += reassembly_us;
+    stream_sum.submit_us += submit_us;
+    stream_sum.rtt_sum += rtt_ms;
+    if (lost > 0) {
+        stream_sum.bad_seconds++;
+    }
+    if (lost > stream_sum.worst_lost) {
+        stream_sum.worst_lost = lost;
+    }
+    if (rtt_ms > stream_sum.rtt_max) {
+        stream_sum.rtt_max = rtt_ms;
+    }
+    if (rtt_var_ms > stream_sum.rtt_var_max) {
+        stream_sum.rtt_var_max = rtt_var_ms;
+    }
+}
+
+void lootnest_stream_end(void) {
+    if (!stream_sum.on) {
+        return;
+    }
+    stream_sum.on = false;
+    if (stream_sum.seconds == 0 || stream_sum.received == 0) {
+        lootnest_note("Stream: ended before a second of picture");
+        return;
+    }
+    double secs = (double) stream_sum.seconds, got = (double) stream_sum.received;
+    double shown = stream_sum.shown > 0 ? (double) stream_sum.shown : 1;
+    lootnest_note("Stream: ended after %u s, %s %dx%d at %d. Frames a second: %.1f arrived, %.1f shown. "
+                  "The network lost %lu of %lu frames (%.2f%%), in %u of those seconds, %u in the worst. "
+                  "A frame took the PC %.1f ms, the TV %.1f ms to put together and %.1f ms to hand to its decoder. "
+                  "Round trip %.0f ms on average, %u at most, varying by up to %u",
+                  stream_sum.seconds, stream_sum.format, stream_sum.width, stream_sum.height, stream_sum.fps,
+                  got / secs, (double) stream_sum.shown / secs,
+                  stream_sum.lost, stream_sum.frames, stream_sum.frames ? 100.0 * (double) stream_sum.lost / (double) stream_sum.frames : 0.0,
+                  stream_sum.bad_seconds, stream_sum.worst_lost,
+                  (double) stream_sum.host_tenths_ms / 10.0 / got, (double) stream_sum.reassembly_us / 1000.0 / got,
+                  (double) stream_sum.submit_us / 1000.0 / shown,
+                  (double) stream_sum.rtt_sum / secs, stream_sum.rtt_max, stream_sum.rtt_var_max);
+}
