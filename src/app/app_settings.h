@@ -66,6 +66,12 @@ typedef struct app_settings_t {
     // Lootnest: which of its picture settings these already are (0: none,
     // Moonlight's own defaults or settings from an older version).
     int lootnest_tuned;
+    // Lootnest: the picture chosen on its home screen (lootnest_picture_t),
+    // where Automatic stands now (1 smooth, 2 balanced, 3 sharp), and how
+    // many good streams it waits before trying a step up again.
+    int lootnest_picture;
+    int lootnest_level;
+    int lootnest_hold;
     int stick_deadzone;
 
     char *conf_dir;

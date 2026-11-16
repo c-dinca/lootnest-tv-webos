@@ -272,19 +272,112 @@ const char *lootnest_controller_line(void) {
     return controller_line;
 }
 
+// What each choice asks for. Sixty frames a second always: fewer feels
+// slower than a softer picture does.
+static const struct {
+    int width, height, fps, kbps;
+} pictures[] = {
+        [LOOTNEST_PICTURE_SMOOTH] = {1280, 720, 60, 6000},
+        [LOOTNEST_PICTURE_BALANCED] = {1920, 1080, 60, 12000},
+        [LOOTNEST_PICTURE_SHARP] = {1920, 1080, 60, 25000},
+};
+
+// The choice as one of Smooth, Balanced or Sharp; 0 for Custom.
+static int picture_preset(const struct app_settings_t *settings) {
+    switch (settings->lootnest_picture) {
+        case LOOTNEST_PICTURE_AUTO:
+            if (settings->lootnest_level < LOOTNEST_PICTURE_SMOOTH) {
+                return LOOTNEST_PICTURE_SMOOTH;
+            }
+            return settings->lootnest_level > LOOTNEST_PICTURE_SHARP ? LOOTNEST_PICTURE_SHARP : settings->lootnest_level;
+        case LOOTNEST_PICTURE_SMOOTH:
+        case LOOTNEST_PICTURE_BALANCED:
+        case LOOTNEST_PICTURE_SHARP:
+            return settings->lootnest_picture;
+        default:
+            return 0;
+    }
+}
+
+static void picture_apply(struct app_settings_t *settings) {
+    int p = picture_preset(settings);
+    if (p == 0) {
+        return;
+    }
+    settings->stream.width = pictures[p].width;
+    settings->stream.height = pictures[p].height;
+    settings->stream.fps = pictures[p].fps;
+    settings->stream.bitrate = pictures[p].kbps;
+    settings->hevc = true;
+}
+
+// "1080p at 60, 12 Mbps".
+static const char *picture_plain(const struct app_settings_t *settings) {
+    static char plain[64];
+    int kbps = settings->stream.bitrate;
+    if (kbps % 1000 == 0) {
+        snprintf(plain, sizeof(plain), "%dp at %d, %d Mbps", settings->stream.height, settings->stream.fps, kbps / 1000);
+    } else {
+        snprintf(plain, sizeof(plain), "%dp at %d, %.1f Mbps", settings->stream.height, settings->stream.fps,
+                 kbps / 1000.0);
+    }
+    return plain;
+}
+
 bool lootnest_tune_picture(struct app_settings_t *settings) {
-    if (settings->lootnest_tuned >= 1) {
+    if (settings->lootnest_tuned >= 2) {
         return false;
     }
-    lootnest_note("Picture asked for was %dx%d at %d, %d kbps; now 1920x1080 at 60, 25000 kbps",
+    lootnest_note("Picture asked for was %dx%d at %d, %d kbps; now Automatic, starting at 1920x1080 at 60, 12000 kbps",
                   settings->stream.width, settings->stream.height, settings->stream.fps, settings->stream.bitrate);
-    settings->stream.width = 1920;
-    settings->stream.height = 1080;
-    settings->stream.fps = 60;
-    settings->stream.bitrate = 25000;
-    settings->hevc = true;
-    settings->lootnest_tuned = 1;
+    settings->lootnest_picture = LOOTNEST_PICTURE_AUTO;
+    settings->lootnest_level = LOOTNEST_PICTURE_BALANCED;
+    settings->lootnest_hold = 0;
+    settings->lootnest_tuned = 2;
+    picture_apply(settings);
     return true;
+}
+
+void lootnest_picture_next(struct app_settings_t *settings) {
+    settings->lootnest_picture = (settings->lootnest_picture + 1) % (LOOTNEST_PICTURE_CUSTOM + 1);
+    if (settings->lootnest_picture == LOOTNEST_PICTURE_AUTO) {
+        settings->lootnest_level = LOOTNEST_PICTURE_BALANCED;
+        settings->lootnest_hold = 0;
+    }
+    picture_apply(settings);
+    lootnest_note("%s, %s", lootnest_picture_key(settings), picture_plain(settings));
+}
+
+bool lootnest_picture_sync(struct app_settings_t *settings) {
+    int p = picture_preset(settings);
+    if (p == 0) {
+        return false;
+    }
+    if (settings->stream.width == pictures[p].width && settings->stream.height == pictures[p].height &&
+        settings->stream.fps == pictures[p].fps && settings->stream.bitrate == pictures[p].kbps) {
+        return false;
+    }
+    settings->lootnest_picture = LOOTNEST_PICTURE_CUSTOM;
+    lootnest_note("Picture changed in Settings: now as Settings says, %s", picture_plain(settings));
+    return true;
+}
+
+const char *lootnest_picture_key(const struct app_settings_t *settings) {
+    static const char *const names[] = {"Picture: Automatic", "Picture: Smooth", "Picture: Balanced", "Picture: Sharp",
+                                        "Picture: As in Settings"};
+    int p = settings->lootnest_picture;
+    return names[p < 0 || p > LOOTNEST_PICTURE_CUSTOM ? LOOTNEST_PICTURE_CUSTOM : p];
+}
+
+const char *lootnest_picture_line(const struct app_settings_t *settings) {
+    static char line[96];
+    static const char *const now[] = {"", "smooth", "balanced", "sharp"};
+    if (settings->lootnest_picture == LOOTNEST_PICTURE_AUTO) {
+        snprintf(line, sizeof(line), "Now %s: %s", now[picture_preset(settings)], picture_plain(settings));
+    } else {
+        snprintf(line, sizeof(line), "%s", picture_plain(settings));
+    }
+    return line;
 }
 
 // One stream's counts. A second is "bad" when the network lost a frame in it.
@@ -297,7 +390,10 @@ static struct {
     unsigned long long host_tenths_ms, reassembly_us, submit_us;
     unsigned worst_lost, rtt_max, rtt_var_max;
     unsigned long long rtt_sum;
-} stream_sum;
+} stream_sum, stream_last;
+
+// The last stream ended and Automatic hasn't looked at it yet.
+static bool stream_unreviewed = false;
 
 void lootnest_stream_begin(const char *format, int width, int height, int fps) {
     memset(&stream_sum, 0, sizeof(stream_sum));
@@ -342,6 +438,8 @@ void lootnest_stream_end(void) {
         return;
     }
     stream_sum.on = false;
+    stream_last = stream_sum;
+    stream_unreviewed = true;
     if (stream_sum.seconds == 0 || stream_sum.received == 0) {
         lootnest_note("Stream: ended before a second of picture");
         return;
@@ -359,4 +457,69 @@ void lootnest_stream_end(void) {
                   (double) stream_sum.host_tenths_ms / 10.0 / got, (double) stream_sum.reassembly_us / 1000.0 / got,
                   (double) stream_sum.submit_us / 1000.0 / shown,
                   (double) stream_sum.rtt_sum / secs, stream_sum.rtt_max, stream_sum.rtt_var_max);
+}
+
+// The share of frames the network lost, and of seconds it lost any in.
+static double last_lost_pct(void) {
+    return stream_last.frames ? 100.0 * (double) stream_last.lost / (double) stream_last.frames : 0.0;
+}
+
+static double last_bad_pct(void) {
+    return stream_last.seconds ? 100.0 * (double) stream_last.bad_seconds / (double) stream_last.seconds : 0.0;
+}
+
+bool lootnest_picture_review(struct app_settings_t *settings) {
+    if (!stream_unreviewed) {
+        return false;
+    }
+    stream_unreviewed = false;
+    // Under 45 seconds says little, and only Automatic moves by itself.
+    if (settings->lootnest_picture != LOOTNEST_PICTURE_AUTO || stream_last.seconds < 45 || stream_last.received == 0) {
+        return false;
+    }
+    double lost = last_lost_pct(), bad = last_bad_pct();
+    bool behind = (double) stream_last.shown < 0.9 * (double) stream_last.received; // the TV's decoder fell behind
+    int level = picture_preset(settings);
+    if (lost >= 1.0 || bad >= 20.0 || behind) {
+        settings->lootnest_hold = 3;
+        if (level > LOOTNEST_PICTURE_SMOOTH) {
+            settings->lootnest_level = level - 1;
+            picture_apply(settings);
+            lootnest_note("Picture: a step down, to %s (%.2f%% of frames lost, in %.0f%% of the seconds%s)",
+                          picture_plain(settings), lost, bad, behind ? ", and the TV fell behind" : "");
+        }
+        return true;
+    }
+    if (stream_last.seconds >= 300 && lost < 0.1 && bad < 2.0) {
+        if (settings->lootnest_hold > 0) {
+            settings->lootnest_hold--;
+            return true;
+        }
+        if (level < LOOTNEST_PICTURE_SHARP) {
+            settings->lootnest_level = level + 1;
+            settings->lootnest_hold = 2; // a step up is tried, not trusted
+            picture_apply(settings);
+            lootnest_note("Picture: a step up, to %s (a clean stream of %u s)", picture_plain(settings),
+                          stream_last.seconds);
+            return true;
+        }
+    }
+    return false;
+}
+
+const char *lootnest_last_stream_line(void) {
+    static char line[160];
+    if (stream_last.seconds < 5 || stream_last.received == 0) {
+        return "";
+    }
+    double secs = (double) stream_last.seconds, lost = last_lost_pct();
+    char loss[48];
+    if (stream_last.lost == 0) {
+        snprintf(loss, sizeof(loss), "none lost on the way");
+    } else {
+        snprintf(loss, sizeof(loss), "%.1f%% lost on the way", lost < 0.1 ? 0.1 : lost);
+    }
+    snprintf(line, sizeof(line), "Last time: %.0f frames a second shown, %s, %.0f ms there and back",
+             (double) stream_last.shown / secs, loss, (double) stream_last.rtt_sum / secs);
+    return line;
 }
