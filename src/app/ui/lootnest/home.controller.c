@@ -170,13 +170,14 @@ typedef enum key_action_t {
     KEY_PLAY,
     KEY_RETRY,
     KEY_WAKE,
+    KEY_SIZE,
     KEY_PICTURE,
     KEY_SETTINGS,
     KEY_QUIT,
 } key_action_t;
 
-// The Picture key was just pressed: it keeps the focus as it changes.
-static bool picture_pressed = false;
+// The Size or Quality key was just pressed: it keeps the focus as it changes.
+static int picture_pressed = -1;
 
 static void key_clicked(lv_event_t *e);
 
@@ -289,11 +290,19 @@ static void key_clicked(lv_event_t *e) {
         case KEY_WAKE:
             wake();
             break;
+        case KEY_SIZE:
+            // The next size the TV decodes, kept for the next stream.
+            lootnest_size_next(&v->global->settings, (int) v->global->ss4s.video_cap.maxWidth,
+                               (int) v->global->ss4s.video_cap.maxHeight);
+            settings_save(&v->global->settings);
+            picture_pressed = KEY_SIZE;
+            render();
+            break;
         case KEY_PICTURE:
-            // The next choice, kept for the next stream.
+            // The next quality, kept for the next stream.
             lootnest_picture_next(&v->global->settings);
             settings_save(&v->global->settings);
-            picture_pressed = true;
+            picture_pressed = KEY_PICTURE;
             render();
             break;
         case KEY_SETTINGS:
@@ -559,8 +568,11 @@ static void render(void) {
     switch (H.state) {
         case HOME_READY: {
             first = add_key(v, locstr("Play"), KEY_PLAY, true);
+            lv_obj_t *size = add_key(v, lootnest_size_key(&v->global->settings), KEY_SIZE, false);
             lv_obj_t *picture = add_key(v, lootnest_picture_key(&v->global->settings), KEY_PICTURE, false);
-            if (picture_pressed) {
+            if (picture_pressed == KEY_SIZE) {
+                first = size;
+            } else if (picture_pressed == KEY_PICTURE) {
                 first = picture;
             }
             add_key(v, locstr("Settings"), KEY_SETTINGS, false);
@@ -594,7 +606,7 @@ static void render(void) {
         lv_obj_add_flag(v->keys, LV_OBJ_FLAG_HIDDEN);
         lv_group_focus_obj(v->root);
     }
-    picture_pressed = false;
+    picture_pressed = -1;
 }
 
 static void set_state(home_state_t state) {

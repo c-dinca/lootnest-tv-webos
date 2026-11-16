@@ -63,15 +63,19 @@ void lootnest_controller_gone(void);
 // The home screen's controller line: "" before any was seen.
 const char *lootnest_controller_line(void);
 
-// The picture Lootnest asks the PC for, chosen on its home screen. Sharp
-// is for a TV on a cable; Smooth is for Wi-Fi that drops frames, where a
-// smaller, lighter picture arrives whole and on time; Balanced is between.
-// Automatic starts at Balanced and, after each stream, steps down when the
+// The picture Lootnest asks the PC for, chosen on its home screen with two
+// keys. Size is how large it is (1080p, 1440p, 4K or 720p, up to what the
+// TV decodes) and is only ever changed by the person. Quality is how many
+// bits a second it gets at that size: Sharp for a TV on a cable, Light for
+// Wi-Fi that drops frames (a lighter picture arrives whole and on time,
+// which is what makes a game feel quick), Balanced between. Automatic
+// starts in the middle and, after each stream, takes a step down when the
 // network lost frames or the TV couldn't keep up, and carefully back up
-// after long clean streams. Custom leaves what Settings says alone.
+// after long clean streams; it never changes the size. Custom leaves what
+// Settings says alone.
 typedef enum lootnest_picture_t {
     LOOTNEST_PICTURE_AUTO = 0,
-    LOOTNEST_PICTURE_SMOOTH,
+    LOOTNEST_PICTURE_LIGHT,
     LOOTNEST_PICTURE_BALANCED,
     LOOTNEST_PICTURE_SHARP,
     LOOTNEST_PICTURE_CUSTOM,
@@ -83,21 +87,28 @@ struct app_settings_t;
 // version's, once (lootnest_tuned). True when the settings changed.
 bool lootnest_tune_picture(struct app_settings_t *settings);
 
-// The next choice in turn, put into the stream's settings.
+// The next quality in turn, put into the stream's settings.
 void lootnest_picture_next(struct app_settings_t *settings);
 
-// Settings were changed by hand since: the choice becomes Custom. True
-// when it did.
+// The next size in turn, among those no larger than the TV decodes
+// (max_width and max_height; 0 when the TV doesn't say, then up to 1080p),
+// with the quality's bits for it.
+void lootnest_size_next(struct app_settings_t *settings, int max_width, int max_height);
+
+// Settings were changed by hand since: a new size keeps the quality, with
+// its bits for that size; other bits make the quality Custom. True when
+// anything changed.
 bool lootnest_picture_sync(struct app_settings_t *settings);
 
 // After a stream, once: Automatic moves a step by how the stream went.
 // True when the settings changed.
 bool lootnest_picture_review(struct app_settings_t *settings);
 
-// "Picture: Automatic", for the home screen's key.
+// "Quality: Automatic" and "Size: 1080p", for the home screen's keys.
 const char *lootnest_picture_key(const struct app_settings_t *settings);
+const char *lootnest_size_key(const struct app_settings_t *settings);
 
-// What that asks the PC for: "1080p at 60, 12 Mbps".
+// What that asks the PC for: "1080p at 60, 14 Mbps".
 const char *lootnest_picture_line(const struct app_settings_t *settings);
 
 // How the last stream of this run went, for the home screen; "" before one.
