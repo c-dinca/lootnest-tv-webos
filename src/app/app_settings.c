@@ -83,6 +83,9 @@ void settings_initialize(app_settings_t *config, char *conf_dir) {
     config->hevc = true;
     config->av1 = false;
     config->lootnest_tuned = 0;
+    config->lootnest_picture = 0;
+    config->lootnest_level = 2;
+    config->lootnest_hold = 0;
     config->stick_deadzone = 7;
 
     config->conf_dir = conf_dir;
@@ -114,6 +117,9 @@ bool settings_save(app_settings_t *config) {
     ini_write_int(fp, "bitrate", config->stream.bitrate);
     ini_write_int(fp, "packetsize", config->stream.packetSize);
     ini_write_int(fp, "lootnest_tuned", config->lootnest_tuned);
+    ini_write_int(fp, "lootnest_picture", config->lootnest_picture);
+    ini_write_int(fp, "lootnest_level", config->lootnest_level);
+    ini_write_int(fp, "lootnest_hold", config->lootnest_hold);
     ini_write_int(fp, "rotate", config->rotate);
 
     ini_write_section(fp, "host");
@@ -273,6 +279,12 @@ static int settings_parse(app_settings_t *config, const char *section, const cha
         set_int(&config->stream.bitrate, value);
     } else if (INI_FULL_MATCH("streaming", "lootnest_tuned")) {
         set_int(&config->lootnest_tuned, value);
+    } else if (INI_FULL_MATCH("streaming", "lootnest_picture")) {
+        set_int(&config->lootnest_picture, value);
+    } else if (INI_FULL_MATCH("streaming", "lootnest_level")) {
+        set_int(&config->lootnest_level, value);
+    } else if (INI_FULL_MATCH("streaming", "lootnest_hold")) {
+        set_int(&config->lootnest_hold, value);
     } else if (INI_FULL_MATCH("streaming", "packetsize")) {
         set_int(&config->stream.packetSize, value);
     } else if (INI_FULL_MATCH("streaming", "rotate")) {

@@ -170,9 +170,13 @@ typedef enum key_action_t {
     KEY_PLAY,
     KEY_RETRY,
     KEY_WAKE,
+    KEY_PICTURE,
     KEY_SETTINGS,
     KEY_QUIT,
 } key_action_t;
+
+// The Picture key was just pressed: it keeps the focus as it changes.
+static bool picture_pressed = false;
 
 static void key_clicked(lv_event_t *e);
 
@@ -284,6 +288,13 @@ static void key_clicked(lv_event_t *e) {
             break;
         case KEY_WAKE:
             wake();
+            break;
+        case KEY_PICTURE:
+            // The next choice, kept for the next stream.
+            lootnest_picture_next(&v->global->settings);
+            settings_save(&v->global->settings);
+            picture_pressed = true;
+            render();
             break;
         case KEY_SETTINGS:
             open_settings(v);
@@ -400,6 +411,13 @@ static void home_created(lv_fragment_t *self, lv_obj_t *obj) {
     v->timer = lv_timer_create(timer_cb, 1000, v);
     home_view = v;
 
+    // Settings may have changed the picture by hand, and a stream that just
+    // ended may move Automatic a step.
+    bool sync = lootnest_picture_sync(&v->global->settings);
+    if (lootnest_picture_review(&v->global->settings) || sync) {
+        settings_save(&v->global->settings);
+    }
+
     if (!started) {
         started = true;
         begin();
@@ -492,9 +510,16 @@ static void render(void) {
         case HOME_STARTING:
             SDL_strlcpy(status, locstr("Starting Lootnest"), sizeof(status));
             break;
-        case HOME_READY:
+        case HOME_READY: {
+            // What the next stream asks for, and how the last one went.
+            static char ready[320];
+            const char *last = lootnest_last_stream_line();
             SDL_strlcpy(status, locstr("Ready"), sizeof(status));
+            SDL_snprintf(ready, sizeof(ready), "%s%s%s", lootnest_picture_line(&v->global->settings), last[0] ? "\n" : "",
+                         last);
+            detail = ready;
             break;
+        }
         case HOME_NO_PC:
             SDL_strlcpy(status, locstr("This TV isn't paired with a PC yet"), sizeof(status));
             detail = locstr("On your PC, open Lootnest, then Settings, TV, and Add an LG TV.");
@@ -532,11 +557,16 @@ static void render(void) {
     lv_obj_clean(v->keys);
     lv_obj_t *first = NULL;
     switch (H.state) {
-        case HOME_READY:
+        case HOME_READY: {
             first = add_key(v, locstr("Play"), KEY_PLAY, true);
+            lv_obj_t *picture = add_key(v, lootnest_picture_key(&v->global->settings), KEY_PICTURE, false);
+            if (picture_pressed) {
+                first = picture;
+            }
             add_key(v, locstr("Settings"), KEY_SETTINGS, false);
             add_key(v, locstr("Quit"), KEY_QUIT, false);
             break;
+        }
         case HOME_OFFLINE:
             first = add_key(v, locstr("Try again"), KEY_RETRY, true);
             add_key(v, locstr("Wake the PC"), KEY_WAKE, false);
@@ -564,6 +594,7 @@ static void render(void) {
         lv_obj_add_flag(v->keys, LV_OBJ_FLAG_HIDDEN);
         lv_group_focus_obj(v->root);
     }
+    picture_pressed = false;
 }
 
 static void set_state(home_state_t state) {
@@ -832,6 +863,11 @@ static void timer_cb(lv_timer_t *t) {
     LV_UNUSED(t);
     if (home_view != NULL) {
         render_pad(home_view);
+        // A stream's numbers can come in a moment after this screen is back.
+        if (H.state == HOME_READY && lootnest_picture_review(&home_view->global->settings)) {
+            settings_save(&home_view->global->settings);
+            render();
+        }
     }
     // A pairing request from Lootnest while this screen waits: the app was
     // already open when Lootnest asked.

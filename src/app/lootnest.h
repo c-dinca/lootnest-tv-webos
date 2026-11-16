@@ -63,13 +63,45 @@ void lootnest_controller_gone(void);
 // The home screen's controller line: "" before any was seen.
 const char *lootnest_controller_line(void);
 
-// The picture Lootnest asks the PC for. Moonlight's own default is 720p at
-// 10 Mbps, which a TV has to stretch; Lootnest's is the TV's own 1080p at
-// 60 frames a second and 25 Mbps, with HEVC where the TV decodes it. It's
-// put in once (lootnest_tuned), so what's chosen in Settings afterwards
-// stays. True when the settings changed and need saving.
+// The picture Lootnest asks the PC for, chosen on its home screen. Sharp
+// is for a TV on a cable; Smooth is for Wi-Fi that drops frames, where a
+// smaller, lighter picture arrives whole and on time; Balanced is between.
+// Automatic starts at Balanced and, after each stream, steps down when the
+// network lost frames or the TV couldn't keep up, and carefully back up
+// after long clean streams. Custom leaves what Settings says alone.
+typedef enum lootnest_picture_t {
+    LOOTNEST_PICTURE_AUTO = 0,
+    LOOTNEST_PICTURE_SMOOTH,
+    LOOTNEST_PICTURE_BALANCED,
+    LOOTNEST_PICTURE_SHARP,
+    LOOTNEST_PICTURE_CUSTOM,
+} lootnest_picture_t;
+
 struct app_settings_t;
+
+// Puts Lootnest's picture in place of Moonlight's defaults or an older
+// version's, once (lootnest_tuned). True when the settings changed.
 bool lootnest_tune_picture(struct app_settings_t *settings);
+
+// The next choice in turn, put into the stream's settings.
+void lootnest_picture_next(struct app_settings_t *settings);
+
+// Settings were changed by hand since: the choice becomes Custom. True
+// when it did.
+bool lootnest_picture_sync(struct app_settings_t *settings);
+
+// After a stream, once: Automatic moves a step by how the stream went.
+// True when the settings changed.
+bool lootnest_picture_review(struct app_settings_t *settings);
+
+// "Picture: Automatic", for the home screen's key.
+const char *lootnest_picture_key(const struct app_settings_t *settings);
+
+// What that asks the PC for: "1080p at 60, 12 Mbps".
+const char *lootnest_picture_line(const struct app_settings_t *settings);
+
+// How the last stream of this run went, for the home screen; "" before one.
+const char *lootnest_last_stream_line(void);
 
 // A stream's picture, counted a second at a time, and summed up in
 // lootnest-tv.log when the stream ends: how many frames arrived and were
