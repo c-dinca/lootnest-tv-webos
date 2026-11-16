@@ -84,7 +84,7 @@ void settings_initialize(app_settings_t *config, char *conf_dir) {
     config->av1 = false;
     config->lootnest_tuned = 0;
     config->lootnest_picture = 0;
-    config->lootnest_level = 2;
+    config->lootnest_level = 3;
     config->lootnest_hold = 0;
     config->stick_deadzone = 7;
 

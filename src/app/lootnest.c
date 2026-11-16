@@ -272,46 +272,95 @@ const char *lootnest_controller_line(void) {
     return controller_line;
 }
 
-// What each choice asks for. Sixty frames a second always: fewer feels
-// slower than a softer picture does.
+// The sizes, in the Size key's turn, and the bits a second (kbps, at 60
+// frames a second, HEVC) each quality gives them.
 static const struct {
-    int width, height, fps, kbps;
-} pictures[] = {
-        [LOOTNEST_PICTURE_SMOOTH] = {1280, 720, 60, 6000},
-        [LOOTNEST_PICTURE_BALANCED] = {1920, 1080, 60, 12000},
-        [LOOTNEST_PICTURE_SHARP] = {1920, 1080, 60, 25000},
+    int width, height;
+    int light, balanced, sharp;
+} sizes[] = {
+        {1920, 1080, 8000, 14000, 25000},
+        {2560, 1440, 12000, 22000, 40000},
+        {3840, 2160, 20000, 35000, 60000},
+        {1280, 720, 5000, 8000, 12000},
 };
+#define SIZE_COUNT ((int) (sizeof(sizes) / sizeof(sizes[0])))
 
-// The choice as one of Smooth, Balanced or Sharp; 0 for Custom.
-static int picture_preset(const struct app_settings_t *settings) {
-    switch (settings->lootnest_picture) {
-        case LOOTNEST_PICTURE_AUTO:
-            if (settings->lootnest_level < LOOTNEST_PICTURE_SMOOTH) {
-                return LOOTNEST_PICTURE_SMOOTH;
-            }
-            return settings->lootnest_level > LOOTNEST_PICTURE_SHARP ? LOOTNEST_PICTURE_SHARP : settings->lootnest_level;
-        case LOOTNEST_PICTURE_SMOOTH:
+// Automatic's steps: 1 is Light, 3 Balanced, 5 Sharp, 2 and 4 between.
+#define LEVEL_MIN 1
+#define LEVEL_START 3
+#define LEVEL_MAX 5
+
+// Which of the sizes the settings ask for; -1 for another.
+static int size_index(const struct app_settings_t *settings) {
+    for (int i = 0; i < SIZE_COUNT; i++) {
+        if (settings->stream.width == sizes[i].width && settings->stream.height == sizes[i].height) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static int clamp_level(int level) {
+    return level < LEVEL_MIN ? LEVEL_MIN : (level > LEVEL_MAX ? LEVEL_MAX : level);
+}
+
+// The bits a second for a quality (and Automatic's step) at a size and a
+// frame rate; 0 for Custom or a size that isn't one of these.
+static int picture_kbps(int quality, int level, int size, int fps) {
+    if (size < 0 || size >= SIZE_COUNT) {
+        return 0;
+    }
+    int kbps;
+    switch (quality) {
+        case LOOTNEST_PICTURE_LIGHT:
+            kbps = sizes[size].light;
+            break;
         case LOOTNEST_PICTURE_BALANCED:
+            kbps = sizes[size].balanced;
+            break;
         case LOOTNEST_PICTURE_SHARP:
-            return settings->lootnest_picture;
+            kbps = sizes[size].sharp;
+            break;
+        case LOOTNEST_PICTURE_AUTO:
+            switch (clamp_level(level)) {
+                case 1:
+                    kbps = sizes[size].light;
+                    break;
+                case 2:
+                    kbps = (sizes[size].light + sizes[size].balanced) / 2;
+                    break;
+                case 3:
+                    kbps = sizes[size].balanced;
+                    break;
+                case 4:
+                    kbps = (sizes[size].balanced + sizes[size].sharp) / 2;
+                    break;
+                default:
+                    kbps = sizes[size].sharp;
+                    break;
+            }
+            break;
         default:
             return 0;
     }
+    // More frames a second need more bits, though not as many more.
+    if (fps > 60) {
+        kbps = kbps + kbps * (fps - 60) / 120;
+    } else if (fps > 0 && fps < 60) {
+        kbps = kbps * (fps + 60) / 120;
+    }
+    return kbps / 500 * 500;
 }
 
 static void picture_apply(struct app_settings_t *settings) {
-    int p = picture_preset(settings);
-    if (p == 0) {
-        return;
+    int kbps = picture_kbps(settings->lootnest_picture, settings->lootnest_level, size_index(settings),
+                            settings->stream.fps);
+    if (kbps > 0) {
+        settings->stream.bitrate = kbps;
     }
-    settings->stream.width = pictures[p].width;
-    settings->stream.height = pictures[p].height;
-    settings->stream.fps = pictures[p].fps;
-    settings->stream.bitrate = pictures[p].kbps;
-    settings->hevc = true;
 }
 
-// "1080p at 60, 12 Mbps".
+// "1080p at 60, 14 Mbps".
 static const char *picture_plain(const struct app_settings_t *settings) {
     static char plain[64];
     int kbps = settings->stream.bitrate;
@@ -325,37 +374,82 @@ static const char *picture_plain(const struct app_settings_t *settings) {
 }
 
 bool lootnest_tune_picture(struct app_settings_t *settings) {
-    if (settings->lootnest_tuned >= 2) {
+    if (settings->lootnest_tuned >= 3) {
         return false;
     }
-    lootnest_note("Picture asked for was %dx%d at %d, %d kbps; now Automatic, starting at 1920x1080 at 60, 12000 kbps",
-                  settings->stream.width, settings->stream.height, settings->stream.fps, settings->stream.bitrate);
+    int was_w = settings->stream.width, was_h = settings->stream.height, was_fps = settings->stream.fps;
+    int was_kbps = settings->stream.bitrate;
+    // 1080p at 60 with HEVC, in place of Moonlight's 720p; a size larger
+    // than that, chosen by hand in Settings before, is kept.
+    if (size_index(settings) < 0 || settings->stream.height < 1080) {
+        settings->stream.width = 1920;
+        settings->stream.height = 1080;
+    }
+    if (settings->stream.fps < 60) {
+        settings->stream.fps = 60;
+    }
+    settings->hevc = true;
     settings->lootnest_picture = LOOTNEST_PICTURE_AUTO;
-    settings->lootnest_level = LOOTNEST_PICTURE_BALANCED;
+    settings->lootnest_level = LEVEL_START;
     settings->lootnest_hold = 0;
-    settings->lootnest_tuned = 2;
+    settings->lootnest_tuned = 3;
     picture_apply(settings);
+    lootnest_note("Picture asked for was %dx%d at %d, %d kbps; now Automatic, starting at %s", was_w, was_h, was_fps,
+                  was_kbps, picture_plain(settings));
     return true;
 }
 
 void lootnest_picture_next(struct app_settings_t *settings) {
     settings->lootnest_picture = (settings->lootnest_picture + 1) % (LOOTNEST_PICTURE_CUSTOM + 1);
     if (settings->lootnest_picture == LOOTNEST_PICTURE_AUTO) {
-        settings->lootnest_level = LOOTNEST_PICTURE_BALANCED;
+        settings->lootnest_level = LEVEL_START;
         settings->lootnest_hold = 0;
     }
     picture_apply(settings);
     lootnest_note("%s, %s", lootnest_picture_key(settings), picture_plain(settings));
 }
 
+void lootnest_size_next(struct app_settings_t *settings, int max_width, int max_height) {
+    if (max_width <= 0 || max_height <= 0) {
+        max_width = 1920;
+        max_height = 1080;
+    }
+    int at = size_index(settings);
+    for (int i = 1; i <= SIZE_COUNT; i++) {
+        int next = ((at < 0 ? -1 : at) + i) % SIZE_COUNT;
+        if (sizes[next].width <= max_width && sizes[next].height <= max_height) {
+            settings->stream.width = sizes[next].width;
+            settings->stream.height = sizes[next].height;
+            break;
+        }
+    }
+    picture_apply(settings);
+    lootnest_note("%s, %s", lootnest_size_key(settings), picture_plain(settings));
+}
+
 bool lootnest_picture_sync(struct app_settings_t *settings) {
-    int p = picture_preset(settings);
-    if (p == 0) {
+    if (settings->lootnest_picture == LOOTNEST_PICTURE_CUSTOM) {
         return false;
     }
-    if (settings->stream.width == pictures[p].width && settings->stream.height == pictures[p].height &&
-        settings->stream.fps == pictures[p].fps && settings->stream.bitrate == pictures[p].kbps) {
+    int size = size_index(settings);
+    int want = picture_kbps(settings->lootnest_picture, settings->lootnest_level, size, settings->stream.fps);
+    if (want > 0 && settings->stream.bitrate == want) {
         return false;
+    }
+    // Only the size or the frame rate was changed in Settings (the bits are
+    // still this quality's for another size or rate): the quality stays.
+    if (want > 0) {
+        static const int rates[] = {30, 60, 90, 120, 144, 240};
+        for (int i = 0; i < SIZE_COUNT; i++) {
+            for (int r = 0; r < (int) (sizeof(rates) / sizeof(rates[0])); r++) {
+                if (settings->stream.bitrate ==
+                    picture_kbps(settings->lootnest_picture, settings->lootnest_level, i, rates[r])) {
+                    settings->stream.bitrate = want;
+                    lootnest_note("Size or frame rate changed in Settings: %s", picture_plain(settings));
+                    return true;
+                }
+            }
+        }
     }
     settings->lootnest_picture = LOOTNEST_PICTURE_CUSTOM;
     lootnest_note("Picture changed in Settings: now as Settings says, %s", picture_plain(settings));
@@ -363,17 +457,27 @@ bool lootnest_picture_sync(struct app_settings_t *settings) {
 }
 
 const char *lootnest_picture_key(const struct app_settings_t *settings) {
-    static const char *const names[] = {"Picture: Automatic", "Picture: Smooth", "Picture: Balanced", "Picture: Sharp",
-                                        "Picture: As in Settings"};
+    static const char *const names[] = {"Quality: Automatic", "Quality: Light", "Quality: Balanced", "Quality: Sharp",
+                                        "Quality: As in Settings"};
     int p = settings->lootnest_picture;
     return names[p < 0 || p > LOOTNEST_PICTURE_CUSTOM ? LOOTNEST_PICTURE_CUSTOM : p];
 }
 
+const char *lootnest_size_key(const struct app_settings_t *settings) {
+    static char key[32];
+    if (settings->stream.height == 2160) {
+        snprintf(key, sizeof(key), "Size: 4K");
+    } else {
+        snprintf(key, sizeof(key), "Size: %dp", settings->stream.height);
+    }
+    return key;
+}
+
 const char *lootnest_picture_line(const struct app_settings_t *settings) {
-    static char line[96];
-    static const char *const now[] = {"", "smooth", "balanced", "sharp"};
-    if (settings->lootnest_picture == LOOTNEST_PICTURE_AUTO) {
-        snprintf(line, sizeof(line), "Now %s: %s", now[picture_preset(settings)], picture_plain(settings));
+    static char line[128];
+    if (settings->lootnest_picture == LOOTNEST_PICTURE_AUTO && size_index(settings) >= 0) {
+        snprintf(line, sizeof(line), "%s (Automatic is at step %d of %d)", picture_plain(settings),
+                 clamp_level(settings->lootnest_level), LEVEL_MAX);
     } else {
         snprintf(line, sizeof(line), "%s", picture_plain(settings));
     }
@@ -474,19 +578,25 @@ bool lootnest_picture_review(struct app_settings_t *settings) {
     }
     stream_unreviewed = false;
     // Under 45 seconds says little, and only Automatic moves by itself.
-    if (settings->lootnest_picture != LOOTNEST_PICTURE_AUTO || stream_last.seconds < 45 || stream_last.received == 0) {
+    if (settings->lootnest_picture != LOOTNEST_PICTURE_AUTO || stream_last.seconds < 45 || stream_last.received == 0 ||
+        size_index(settings) < 0) {
         return false;
     }
     double lost = last_lost_pct(), bad = last_bad_pct();
     bool behind = (double) stream_last.shown < 0.9 * (double) stream_last.received; // the TV's decoder fell behind
-    int level = picture_preset(settings);
+    int level = clamp_level(settings->lootnest_level);
     if (lost >= 1.0 || bad >= 20.0 || behind) {
         settings->lootnest_hold = 3;
-        if (level > LOOTNEST_PICTURE_SMOOTH) {
-            settings->lootnest_level = level - 1;
+        if (level > LEVEL_MIN) {
+            // Two steps at once when a twentieth of the frames went missing.
+            settings->lootnest_level = clamp_level(level - (lost >= 5.0 ? 2 : 1));
             picture_apply(settings);
-            lootnest_note("Picture: a step down, to %s (%.2f%% of frames lost, in %.0f%% of the seconds%s)",
+            lootnest_note("Picture: fewer bits, %s (%.2f%% of frames lost, in %.0f%% of the seconds%s)",
                           picture_plain(settings), lost, bad, behind ? ", and the TV fell behind" : "");
+        } else {
+            lootnest_note("Picture: already at its lightest for this size (%.2f%% of frames lost, in %.0f%% of the "
+                          "seconds%s); a smaller size or a cable is what's left",
+                          lost, bad, behind ? ", and the TV fell behind" : "");
         }
         return true;
     }
@@ -495,11 +605,11 @@ bool lootnest_picture_review(struct app_settings_t *settings) {
             settings->lootnest_hold--;
             return true;
         }
-        if (level < LOOTNEST_PICTURE_SHARP) {
+        if (level < LEVEL_MAX) {
             settings->lootnest_level = level + 1;
             settings->lootnest_hold = 2; // a step up is tried, not trusted
             picture_apply(settings);
-            lootnest_note("Picture: a step up, to %s (a clean stream of %u s)", picture_plain(settings),
+            lootnest_note("Picture: more bits, %s (a clean stream of %u s)", picture_plain(settings),
                           stream_last.seconds);
             return true;
         }
