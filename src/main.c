@@ -1,4 +1,5 @@
 #include "app.h"
+#include "lootnest.h"
 #include "app_launch.h"
 #include "util/path.h"
 #include "logging.h"
@@ -52,6 +53,10 @@ static int settings_load(app_settings_t *settings) {
     settings->conf_persistent = persistent;
     if (!settings_read(settings)) {
         commons_log_warn("Settings", "Failed to read settings %s", settings->ini_path);
+    }
+    // Lootnest's picture in place of Moonlight's 720p, once.
+    if (lootnest_tune_picture(settings)) {
+        settings_save(settings);
     }
     return 0;
 }

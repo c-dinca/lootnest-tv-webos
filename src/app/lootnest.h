@@ -62,3 +62,20 @@ void lootnest_controller_gone(void);
 
 // The home screen's controller line: "" before any was seen.
 const char *lootnest_controller_line(void);
+
+// The picture Lootnest asks the PC for. Moonlight's own default is 720p at
+// 10 Mbps, which a TV has to stretch; Lootnest's is the TV's own 1080p at
+// 60 frames a second and 25 Mbps, with HEVC where the TV decodes it. It's
+// put in once (lootnest_tuned), so what's chosen in Settings afterwards
+// stays. True when the settings changed and need saving.
+struct app_settings_t;
+bool lootnest_tune_picture(struct app_settings_t *settings);
+
+// A stream's picture, counted a second at a time, and summed up in
+// lootnest-tv.log when the stream ends: how many frames arrived and were
+// shown, how many the network lost and in how many seconds, and how long
+// the PC, the network and the TV each took.
+void lootnest_stream_begin(const char *format, int width, int height, int fps);
+void lootnest_stream_second(unsigned frames, unsigned received, unsigned lost, unsigned shown, unsigned host_tenths_ms,
+                            unsigned reassembly_us, unsigned submit_us, unsigned rtt_ms, unsigned rtt_var_ms);
+void lootnest_stream_end(void);

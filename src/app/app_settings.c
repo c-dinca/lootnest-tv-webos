@@ -82,6 +82,7 @@ void settings_initialize(app_settings_t *config, char *conf_dir) {
     config->hdr = false;
     config->hevc = true;
     config->av1 = false;
+    config->lootnest_tuned = 0;
     config->stick_deadzone = 7;
 
     config->conf_dir = conf_dir;
@@ -112,6 +113,7 @@ bool settings_save(app_settings_t *config) {
     ini_write_int(fp, "net_fps", config->stream.fps);
     ini_write_int(fp, "bitrate", config->stream.bitrate);
     ini_write_int(fp, "packetsize", config->stream.packetSize);
+    ini_write_int(fp, "lootnest_tuned", config->lootnest_tuned);
     ini_write_int(fp, "rotate", config->rotate);
 
     ini_write_section(fp, "host");
@@ -269,6 +271,8 @@ static int settings_parse(app_settings_t *config, const char *section, const cha
         set_int(&config->stream.fps, value);
     } else if (INI_FULL_MATCH("streaming", "bitrate")) {
         set_int(&config->stream.bitrate, value);
+    } else if (INI_FULL_MATCH("streaming", "lootnest_tuned")) {
+        set_int(&config->lootnest_tuned, value);
     } else if (INI_FULL_MATCH("streaming", "packetsize")) {
         set_int(&config->stream.packetSize, value);
     } else if (INI_FULL_MATCH("streaming", "rotate")) {
