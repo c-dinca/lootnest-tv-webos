@@ -68,6 +68,7 @@ typedef struct home_fragment_t {
     const app_launch_params_t *params;
 
     lv_obj_t *root;
+    lv_obj_t *body;
     lv_obj_t *pc_label;
     lv_obj_t *spinner;
     lv_obj_t *status;
@@ -144,8 +145,8 @@ static void fonts_init(app_ui_t *ui) {
         return;
     }
     int dpi = ui->dpi;
-    F.title = font_mem("TiltWarp", res_tilt_warp_data, res_tilt_warp_size, _LV_DPX_CALC(dpi, 44));
-    F.status = font_mem("TiltWarp", res_tilt_warp_data, res_tilt_warp_size, _LV_DPX_CALC(dpi, 24));
+    F.title = font_mem("TiltWarp", res_tilt_warp_data, res_tilt_warp_size, _LV_DPX_CALC(dpi, 26));
+    F.status = font_mem("TiltWarp", res_tilt_warp_data, res_tilt_warp_size, _LV_DPX_CALC(dpi, 30));
     F.body = font_mem("Atkinson", res_atkinson_data, res_atkinson_size, _LV_DPX_CALC(dpi, 17));
     F.small = font_mem("Atkinson", res_atkinson_data, res_atkinson_size, _LV_DPX_CALC(dpi, 14));
     F.key = font_mem("AtkinsonBold", res_atkinson_bold_data, res_atkinson_bold_size, _LV_DPX_CALC(dpi, 17));
@@ -239,19 +240,39 @@ static lv_obj_t *add_key(home_fragment_t *v, const char *text, key_action_t acti
     return key;
 }
 
+// Left and right move along the keys and stop at the ends. The group's own
+// next and previous went round through the screen itself, which takes no
+// arrows or OK, so a press too many left nothing to come back with.
 static void key_nav(lv_event_t *e) {
     home_fragment_t *v = lv_event_get_user_data(e);
+    lv_obj_t *key = lv_event_get_current_target(e);
+    int at = (int) lv_obj_get_index(key);
+    int count = (int) lv_obj_get_child_cnt(v->keys);
+    int to = at;
     switch (lv_event_get_key(e)) {
         case LV_KEY_LEFT:
         case LV_KEY_UP:
-            lv_group_focus_prev(v->group);
+            to = at - 1;
             break;
         case LV_KEY_RIGHT:
         case LV_KEY_DOWN:
-            lv_group_focus_next(v->group);
+            to = at + 1;
             break;
         default:
-            break;
+            return;
+    }
+    if (at < 0 || to < 0 || to >= count) {
+        return;
+    }
+    lv_group_focus_obj(lv_obj_get_child(v->keys, to));
+}
+
+// The screen has the focus only while it shows no key; any arrow or OK
+// then goes to the first key, should one have come since.
+static void root_key(lv_event_t *e) {
+    home_fragment_t *v = lv_event_get_user_data(e);
+    if (lv_obj_get_child_cnt(v->keys) > 0 && !lv_obj_has_flag(v->keys, LV_OBJ_FLAG_HIDDEN)) {
+        lv_group_focus_obj(lv_obj_get_child(v->keys, 0));
     }
 }
 
@@ -334,6 +355,17 @@ static lv_obj_t *label(lv_obj_t *parent, const lv_font_t *font, uint32_t color) 
     return l;
 }
 
+static lv_obj_t *row(lv_obj_t *parent) {
+    lv_obj_t *r = lv_obj_create(parent);
+    lv_obj_remove_style_all(r);
+    lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flex_flow(r, LV_FLEX_FLOW_ROW);
+    return r;
+}
+
+// The screen in three bands, so nothing can sit over anything else: the
+// gem and the name with the PC at the top, what's happening and the keys
+// in the middle, and a foot with the controller, the hint and the version.
 static lv_obj_t *home_create(lv_fragment_t *self, lv_obj_t *container) {
     home_fragment_t *v = (home_fragment_t *) self;
     app_ui_t *ui = &v->global->ui;
@@ -350,30 +382,40 @@ static lv_obj_t *home_create(lv_fragment_t *self, lv_obj_t *container) {
     lv_obj_set_style_bg_main_stop(root, 0, 0);
     lv_obj_set_style_bg_grad_stop(root, 160, 0);
     lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(root, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_all(root, LV_DPX(32), 0);
-    lv_obj_set_style_pad_row(root, LV_DPX(10), 0);
+    lv_obj_set_style_pad_hor(root, LV_DPX(48), 0);
+    lv_obj_set_style_pad_ver(root, LV_DPX(32), 0);
 
-    // The gem in its nest, as on the PC.
-    v->logo.header.w = LV_DPX(96);
-    v->logo.header.h = LV_DPX(96);
+    // Top: the gem in its nest and the name, the PC on the right.
+    lv_obj_t *head = row(root);
+    lv_obj_set_size(head, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_align(head, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(head, LV_DPX(12), 0);
+    v->logo.header.w = LV_DPX(52);
+    v->logo.header.h = LV_DPX(52);
     v->logo.header.cf = LV_IMG_CF_TRUE_COLOR_ALPHA;
     v->logo.data_size = sizeof(lv_sdl_img_data_logo_96);
     v->logo.data = (const uint8_t *) &lv_sdl_img_data_logo_96;
-    lv_obj_t *logo = lv_img_create(root);
+    lv_obj_t *logo = lv_img_create(head);
     lv_img_set_src(logo, &v->logo);
-    lv_obj_set_size(logo, LV_DPX(96), LV_DPX(96));
-
-    lv_obj_t *title = label(root, F.title, C_TEXT);
+    lv_obj_set_size(logo, LV_DPX(52), LV_DPX(52));
+    lv_obj_t *title = label(head, F.title, C_TEXT);
     lv_label_set_text_static(title, "Lootnest");
+    lv_obj_set_flex_grow(title, 1);
+    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_LEFT, 0);
+    v->pc_label = label(head, F.body, C_TEXT_2);
+    lv_obj_set_style_text_align(v->pc_label, LV_TEXT_ALIGN_RIGHT, 0);
 
-    v->pc_label = label(root, F.body, C_TEXT_2);
+    // Middle: takes what the bands leave, its content centred in it.
+    v->body = lv_obj_create(root);
+    lv_obj_remove_style_all(v->body);
+    lv_obj_clear_flag(v->body, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_width(v->body, LV_PCT(100));
+    lv_obj_set_flex_grow(v->body, 1);
+    lv_obj_set_flex_flow(v->body, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(v->body, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(v->body, LV_DPX(12), 0);
 
-    lv_obj_t *gap = lv_obj_create(root);
-    lv_obj_remove_style_all(gap);
-    lv_obj_set_size(gap, 1, LV_DPX(24));
-
-    v->spinner = lv_spinner_create(root, 1000, 60);
+    v->spinner = lv_spinner_create(v->body, 1000, 60);
     lv_obj_set_size(v->spinner, LV_DPX(40), LV_DPX(40));
     lv_obj_set_style_arc_width(v->spinner, LV_DPX(4), LV_PART_MAIN);
     lv_obj_set_style_arc_width(v->spinner, LV_DPX(4), LV_PART_INDICATOR);
@@ -381,34 +423,45 @@ static lv_obj_t *home_create(lv_fragment_t *self, lv_obj_t *container) {
     lv_obj_set_style_arc_color(v->spinner, lv_color_hex(C_TEXT), LV_PART_INDICATOR);
     lv_obj_clear_flag(v->spinner, LV_OBJ_FLAG_CLICKABLE);
 
-    v->status = label(root, F.status, C_TEXT);
-    v->detail = label(root, F.body, C_TEXT_3);
-    lv_obj_set_width(v->detail, LV_PCT(60));
+    v->status = label(v->body, F.status, C_TEXT);
+    v->detail = label(v->body, F.body, C_TEXT_3);
+    lv_obj_set_width(v->detail, LV_PCT(70));
     lv_label_set_long_mode(v->detail, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_line_space(v->detail, LV_DPX(4), 0);
 
-    v->keys = lv_obj_create(root);
-    lv_obj_remove_style_all(v->keys);
+    v->keys = row(v->body);
     lv_obj_set_size(v->keys, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(v->keys, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_column(v->keys, LV_DPX(14), 0);
-    lv_obj_set_style_pad_top(v->keys, LV_DPX(20), 0);
-    lv_obj_set_style_pad_all(v->keys, LV_DPX(6), 0);
+    // Room for the focused key's growth and ring.
+    lv_obj_set_style_pad_all(v->keys, LV_DPX(10), 0);
+    lv_obj_set_style_pad_top(v->keys, LV_DPX(22), 0);
 
-    v->hint = label(root, F.small, C_TEXT_3);
-    lv_obj_add_flag(v->hint, LV_OBJ_FLAG_IGNORE_LAYOUT);
-    lv_obj_align(v->hint, LV_ALIGN_BOTTOM_MID, 0, -LV_DPX(28));
-    lv_label_set_text_static(v->hint, locstr("To come back here while you play, hold Start and Select for two seconds."));
+    // Foot: the controller on the left, the hint in the middle, the
+    // version on the right, each in its own third.
+    lv_obj_t *foot = row(root);
+    lv_obj_set_size(foot, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_align(foot, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    lv_obj_set_style_pad_column(foot, LV_DPX(24), 0);
 
     // Which controller the TV has, or that it isn't recognised.
-    v->pad = label(root, F.small, C_TEXT_2);
-    lv_obj_add_flag(v->pad, LV_OBJ_FLAG_IGNORE_LAYOUT);
-    lv_obj_align(v->pad, LV_ALIGN_BOTTOM_MID, 0, -LV_DPX(52));
+    v->pad = label(foot, F.small, C_TEXT_2);
+    lv_obj_set_flex_grow(v->pad, 1);
+    lv_obj_set_width(v->pad, 1);
+    lv_label_set_long_mode(v->pad, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(v->pad, LV_TEXT_ALIGN_LEFT, 0);
 
-    // Which version this is, in a corner: what's on the TV is otherwise
-    // only known to Lootnest on the PC.
-    lv_obj_t *version = label(root, F.small, C_TEXT_3);
-    lv_obj_add_flag(version, LV_OBJ_FLAG_IGNORE_LAYOUT);
-    lv_obj_align(version, LV_ALIGN_BOTTOM_RIGHT, -LV_DPX(28), -LV_DPX(28));
+    v->hint = label(foot, F.small, C_TEXT_3);
+    lv_obj_set_flex_grow(v->hint, 1);
+    lv_obj_set_width(v->hint, 1);
+    lv_label_set_long_mode(v->hint, LV_LABEL_LONG_WRAP);
+    lv_label_set_text_static(v->hint, locstr("To come back here while you play, hold Start and Select for two seconds."));
+
+    // Which version this is: what's on the TV is otherwise only known to
+    // Lootnest on the PC.
+    lv_obj_t *version = label(foot, F.small, C_TEXT_3);
+    lv_obj_set_flex_grow(version, 1);
+    lv_obj_set_width(version, 1);
+    lv_obj_set_style_text_align(version, LV_TEXT_ALIGN_RIGHT, 0);
     lv_label_set_text_static(version, "Lootnest for TV " APP_VERSION);
     return root;
 }
@@ -422,6 +475,7 @@ static void home_created(lv_fragment_t *self, lv_obj_t *obj) {
     // With no key on screen, Back still reaches the screen.
     lv_group_add_obj(v->group, obj);
     lv_obj_add_event_cb(obj, back_pressed, LV_EVENT_CANCEL, v);
+    lv_obj_add_event_cb(obj, root_key, LV_EVENT_KEY, v);
     app_input_set_group(&v->global->ui.input, v->group);
     pcmanager_register_listener(pcmanager, &listener, v);
     v->timer = lv_timer_create(timer_cb, 1000, v);
@@ -478,12 +532,10 @@ static bool busy(home_state_t s) {
 }
 
 static void render_pad(home_fragment_t *v) {
+    // Emptied rather than hidden: the foot's thirds stay where they are.
     const char *line = lootnest_controller_line();
-    if (line[0]) {
+    if (strcmp(lv_label_get_text(v->pad), line) != 0) {
         lv_label_set_text(v->pad, line);
-        lv_obj_clear_flag(v->pad, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_add_flag(v->pad, LV_OBJ_FLAG_HIDDEN);
     }
 }
 
@@ -504,9 +556,9 @@ static void render(void) {
         lv_obj_add_flag(v->pc_label, LV_OBJ_FLAG_HIDDEN);
     }
     if (H.state == HOME_READY || H.state == HOME_STARTING) {
-        lv_obj_clear_flag(v->hint, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text_static(v->hint, locstr("To come back here while you play, hold Start and Select for two seconds."));
     } else {
-        lv_obj_add_flag(v->hint, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text_static(v->hint, "");
     }
     switch (H.state) {
         case HOME_START:
@@ -602,6 +654,13 @@ static void render(void) {
             break;
         default:
             break;
+    }
+    // The screen itself is in the group only while there's no key, so Back
+    // still reaches it then; with keys, the focus never leaves them.
+    if (first != NULL) {
+        lv_group_remove_obj(v->root);
+    } else if (lv_obj_get_group(v->root) == NULL) {
+        lv_group_add_obj(v->group, v->root);
     }
     if (first != NULL) {
         lv_obj_clear_flag(v->keys, LV_OBJ_FLAG_HIDDEN);
