@@ -144,6 +144,13 @@ static void on_view_created(lv_fragment_t *self, lv_obj_t *view) {
             lv_btn_set_icon_font(item_view, lv_theme_moonlight_get_iconfont_normal(item_view));
 
             lv_obj_set_style_bg_opa(item_view, LV_OPA_COVER, LV_STATE_FOCUS_KEY);
+            // Lootnest's look, as on its home screen: the part in focus is
+            // Ice Grey with dark words, the one on show a raised grey.
+            lv_obj_set_style_bg_color(item_view, lv_color_hex(0x262a33), LV_STATE_CHECKED);
+            lv_obj_set_style_bg_color(item_view, lv_color_hex(0xdfe5eb), LV_STATE_FOCUS_KEY);
+            lv_obj_set_style_bg_color(item_view, lv_color_hex(0xdfe5eb), LV_STATE_FOCUS_KEY | LV_STATE_CHECKED);
+            lv_obj_set_style_text_color(item_view, lv_color_hex(0x111217), LV_STATE_FOCUS_KEY);
+            lv_obj_set_style_text_color(item_view, lv_color_hex(0x111217), LV_STATE_FOCUS_KEY | LV_STATE_CHECKED);
             lv_obj_add_flag(item_view, LV_OBJ_FLAG_EVENT_BUBBLE);
             item_view->user_data = (void *) entry.cls;
         }
