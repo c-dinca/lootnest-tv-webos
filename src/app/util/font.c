@@ -82,6 +82,29 @@ int app_font_init(app_fonts_t *fonts, int dpi) {
         pattern = NULL;
     }
 #endif
+    // Lootnest: the whole app is in Lootnest's own font, as its home screen
+    // is (home.controller.c), so every screen has the same letters and
+    // sizes on every TV. The TV's font (Museo Sans on LG's) is wider and
+    // taller, and Settings was laid out for neither, so its words ran into
+    // its keys. The TV's font stays behind it for letters Atkinson lacks.
+    app_fontset_t own = {
+            .small_size = fontset.small_size,
+            .normal_size = fontset.normal_size,
+            .large_size = fontset.large_size,
+    };
+    if (fontset_load_mem(&own, "Atkinson", res_atkinson_data, res_atkinson_size)) {
+        app_fontset_t *system = malloc(sizeof(app_fontset_t));
+        if (system) {
+            *system = fontset;
+            own.fallback = system;
+            own.normal->fallback = system->normal;
+            own.large->fallback = system->large;
+            own.small->fallback = system->small;
+            fontset = own;
+        } else {
+            fontset_destroy_fonts(&own);
+        }
+    }
     fonts->fonts = fontset;
     fonts->icons = iconfonts;
     return 0;
@@ -150,14 +173,12 @@ static bool fontset_load_mem(app_fontset_t *set, const char *name, const void *m
 }
 
 static void fontset_destroy_fonts(app_fontset_t *fontset) {
-    lv_ft_font_destroy(fontset->large);
-    lv_ft_font_destroy(fontset->normal);
-    lv_ft_font_destroy(fontset->small);
+    if (fontset->large) lv_ft_font_destroy(fontset->large);
+    if (fontset->normal) lv_ft_font_destroy(fontset->normal);
+    if (fontset->small) lv_ft_font_destroy(fontset->small);
     app_fontset_t *fallback = fontset->fallback;
     if (fallback) {
-        lv_ft_font_destroy(fallback->large);
-        lv_ft_font_destroy(fallback->normal);
-        lv_ft_font_destroy(fallback->small);
+        fontset_destroy_fonts(fallback); // a fallback may have its own (Lootnest's font, the TV's, the language's)
         free(fallback);
     }
 }
