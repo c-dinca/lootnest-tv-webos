@@ -364,7 +364,7 @@ static lv_obj_t *row(lv_obj_t *parent) {
 }
 
 // The screen in three bands, so nothing can sit over anything else: the
-// gem and the name with the PC at the top, what's happening and the keys
+// mark and the name with the PC at the top, what's happening and the keys
 // in the middle, and a foot with the controller, the hint and the version.
 static lv_obj_t *home_create(lv_fragment_t *self, lv_obj_t *container) {
     home_fragment_t *v = (home_fragment_t *) self;
@@ -385,7 +385,7 @@ static lv_obj_t *home_create(lv_fragment_t *self, lv_obj_t *container) {
     lv_obj_set_style_pad_hor(root, LV_DPX(48), 0);
     lv_obj_set_style_pad_ver(root, LV_DPX(32), 0);
 
-    // Top: the gem in its nest and the name, the PC on the right.
+    // Top: the brand mark (a ring over two arcs) and the name, the PC on the right.
     lv_obj_t *head = row(root);
     lv_obj_set_size(head, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_align(head, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
