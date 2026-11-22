@@ -22,7 +22,8 @@ merged (`git remote add upstream https://github.com/mariotaku/moonlight-tv`):
   shown: it pairs, wakes the PC, opens the PC's app named "Lootnest" and
   says what it's doing; Play, Settings and Quit when the stream ends.
   Lootnest's fonts (Tilt Warp, Atkinson Hyperlegible Next; OFL,
-  `src/app/res/fonts/OFL.txt`) and its gem as the logo.
+  `src/app/res/fonts/OFL.txt`) and its brand mark (a red ring over two
+  arcs) as the logo, the icon and the splash.
 - Pairing from the launch parameters Lootnest passes when it installs the
   app (`{"host": "...", "pairPin": "1234"}`), so the PIN never needs
   typing; or from `/media/developer/temp/lootnest-pair.json` (with an
